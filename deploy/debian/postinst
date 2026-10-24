@@ -1,0 +1,23 @@
+#!/bin/sh
+# Creates the service account and the directories; never touches an existing configuration.
+set -e
+if [ "$1" = "configure" ]; then
+  if ! getent passwd dyna_cyber_agent >/dev/null; then
+    adduser --system --group --home /var/lib/dyna_cyber_agent --no-create-home --shell /usr/sbin/nologin dyna_cyber_agent >/dev/null
+  fi
+  install -d -o dyna_cyber_agent -g dyna_cyber_agent -m 0750 /var/lib/dyna_cyber_agent /var/log/dyna_cyber_agent
+  install -d -o root -g dyna_cyber_agent -m 0750 /etc/dyna_cyber_agent /etc/dyna_cyber_agent/keys
+  if [ ! -e /etc/dyna_cyber_agent/rules ]; then
+    cp -r /usr/share/dyna_cyber_agent/rules /etc/dyna_cyber_agent/rules
+  fi
+  if [ ! -e /etc/dyna_cyber_agent/agent.yaml ]; then
+    install -o root -g dyna_cyber_agent -m 0640 /usr/share/dyna_cyber_agent/agent.example.yaml /etc/dyna_cyber_agent/agent.yaml
+    echo "dyna_cyber_agent: edit /etc/dyna_cyber_agent/agent.yaml, then: systemctl enable --now dyna_cyber_agent"
+  fi
+  if [ -d /etc/logrotate.d ] && [ ! -e /etc/logrotate.d/dyna_cyber_agent ]; then
+    cp /usr/share/dyna_cyber_agent/deploy/dyna_cyber_agent.logrotate /etc/logrotate.d/dyna_cyber_agent
+  fi
+  chmod 0700 /etc/dyna_cyber_agent/keys
+  chown dyna_cyber_agent:dyna_cyber_agent /etc/dyna_cyber_agent/keys
+fi
+exit 0

@@ -1,0 +1,158 @@
+# Process rules. Fields come from the `process` observation: pid, ppid, comm, uid, exe,
+# exe_sha256, parent_exe, cwd, cmdline, rwx_mappings ... Tags: exe_deleted, exe_memfd,
+# exe_in_volatile_dir, comm_mismatch, rwx_memory.
+
+- id: PROC-001
+  title: Process runs from a deleted binary in a temporary directory
+  severity: critical
+  mitre: [T1070.004, T1036]
+  description: >
+    The executable was started from /tmp, /var/tmp or /dev/shm and then deleted from disk.
+    This is a typical way to hide a dropped payload.
+  remediation: >
+    Do not kill it yet: copy its image with `cp /proc/<pid>/exe` on a forensic copy, collect
+    /proc/<pid>/{cmdline,environ,maps,fd}, then isolate the host and terminate the process.
+  match:
+    type: process
+    tags_any: [exe_deleted]
+    where:
+      - {field: exe, op: regex, value: '^/(tmp|var/tmp|dev/shm)/'}
+
+- id: PROC-002
+  title: Process runs from a deleted binary
+  severity: low
+  mitre: [T1070.004]
+  description: >
+    The on-disk executable no longer exists. Most often a package was upgraded and the service
+    was not restarted, but it can also mean a binary was removed to hide it.
+  remediation: Check the package history (`dpkg -S` / `rpm -qf`, apt/dnf logs) and restart the service if it was an upgrade.
+  match:
+    type: process
+    tags_any: [exe_deleted]
+    where:
+      - {not: {field: exe, op: regex, value: '^/(tmp|var/tmp|dev/shm)/'}}
+
+- id: PROC-003
+  title: Process executes from an anonymous memory file (fileless)
+  severity: high
+  mitre: [T1620, T1055]
+  description: >
+    The executable is a memfd. Malware uses it to run code without touching the disk. Container
+    runtimes (runc) also do this briefly, so check the parent before escalating.
+  remediation: Inspect /proc/<pid>/cmdline and the parent process; if not a container runtime, treat as an intrusion.
+  match:
+    type: process
+    tags_any: [exe_memfd]
+
+- id: PROC-004
+  title: Process runs from a world-writable temporary directory
+  severity: high
+  mitre: [T1059, T1036]
+  description: Legitimate services do not run from /tmp, /var/tmp or /dev/shm.
+  remediation: Identify who created the file (`stat`, auth logs around the start time) and what launched it.
+  match:
+    type: process
+    tags_any: [exe_in_volatile_dir]
+    where:
+      - {not: {field: exe, op: contains, value: ' (deleted)'}}
+
+- id: PROC-005
+  title: Shell spawned by a network-facing service
+  severity: critical
+  cwe: [CWE-78]
+  mitre: [T1505.003, T1190, T1059.004]
+  description: A web server, application server or database started an interactive shell. This is the signature of a webshell or an exploited service.
+  remediation: Review the service logs for the request that triggered it, isolate the host and rotate credentials the service could read.
+  match:
+    type: process
+    where:
+      - {field: parent_exe, op: regex, value: '/(nginx|apache2|httpd|php-fpm[0-9.]*|php[0-9.]*|tomcat[0-9]*|java|node|uwsgi|gunicorn|mysqld|mariadbd|postgres|redis-server|mongod)$'}
+      - {field: exe, op: regex, value: '/(ba|da|z|k|c|tc|fi)?sh$'}
+
+- id: PROC-006
+  title: New executable with writable+executable memory
+  severity: medium
+  mitre: [T1055]
+  description: A program never seen before maps memory as rwx, a sign of injected code (also normal for some JIT runtimes).
+  remediation: Verify the binary comes from a package and check the process memory map.
+  match:
+    type: process
+    tags_any: [rwx_memory]
+    drift: process.exe
+
+- id: PROC-007
+  title: Executable never seen on this host
+  severity: medium
+  description: A program that is not part of the learned baseline is running.
+  remediation: Confirm it is expected (package, deployment). If so, accept it with `--accept <id>`.
+  match:
+    type: process
+    drift: process.exe
+
+- id: PROC-008
+  title: Known executable changed content
+  severity: high
+  mitre: [T1554, T1565]
+  description: The binary path is known but its SHA-256 differs from the baseline. This is expected after an update and suspicious otherwise.
+  remediation: Compare with the package (`dpkg -V <pkg>` / `rpm -V <pkg>`) and with the update history.
+  match:
+    type: process
+    drift: process.binary
+    drift_absent: [process.exe]
+
+- id: PROC-009
+  title: Known executable started by an unusual parent
+  severity: low
+  mitre: [T1059]
+  description: The program is known but was never seen with this parent process.
+  remediation: Check what the parent is and why it launched this program.
+  match:
+    type: process
+    drift: process.lineage
+    drift_absent: [process.exe]
+
+- id: PROC-010
+  title: Process name does not match its executable (masquerading)
+  severity: medium
+  mitre: [T1036.005]
+  description: The kernel process name differs from the binary name, and the executable is new.
+  remediation: Verify the binary path and hash; compare with similarly named legitimate processes.
+  match:
+    type: process
+    tags_any: [comm_mismatch]
+    drift: process.exe
+
+- id: PROC-011
+  title: Known executable now runs as a different user
+  severity: medium
+  mitre: [T1078, T1548]
+  description: The program was never seen running under this uid before.
+  remediation: Check for privilege escalation (sudo, setuid binaries) and who started it.
+  match:
+    type: process
+    drift: process.user
+    drift_absent: [process.exe]
+
+- id: PROC-012
+  title: Offensive or cryptomining tool running
+  severity: high
+  mitre: [T1496, T1059]
+  description: The process name or path matches well-known attack tools or miners.
+  remediation: Terminate after collecting evidence, find the initial access vector.
+  match:
+    type: process
+    where:
+      - any:
+          - {field: comm, op: regex, value: '^(nc|ncat|netcat|socat|nmap|masscan|hydra|medusa|john|hashcat|xmrig|minerd|kdevtmpfsi|kinsing|mimipenguin|linpeas|pspy[0-9]*)$'}
+          - {field: exe, op: regex, value: '/(xmrig|minerd|kdevtmpfsi|kinsing|ncat|masscan|hydra|linpeas)[^/]*$'}
+
+- id: PROC-013
+  title: Executable is a hidden file
+  severity: medium
+  mitre: [T1564.001]
+  description: The binary has a name starting with a dot, a common way to hide it from directory listings.
+  remediation: Locate the file, check owner and creation time, and its origin.
+  match:
+    type: process
+    where:
+      - {field: exe, op: regex, value: '/\.[^/]+( \(deleted\))?$'}

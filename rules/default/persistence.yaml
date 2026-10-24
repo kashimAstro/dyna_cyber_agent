@@ -1,0 +1,193 @@
+# Persistence rules: cron, systemd, shell startup files, ld.so.preload (collector `persistence`).
+
+- id: PERS-001
+  title: Cron job downloads and executes code
+  severity: critical
+  mitre: [T1053.003, T1105]
+  description: >
+    A cron entry pipes a download into a shell, decodes and executes base64, or opens a reverse shell.
+  remediation: >
+    Read the whole entry and the file it comes from, identify who created it (stat, auth log), remove it
+    after saving a copy, and look for the payload it fetches.
+  match:
+    type: cron.entry
+    tags_any: [pipe_to_shell, base64_exec, reverse_shell]
+
+- id: PERS-002
+  title: Cron job runs a program from a temporary directory
+  severity: high
+  mitre: [T1053.003, T1036]
+  description: Legitimate cron jobs do not execute from /tmp, /var/tmp or /dev/shm.
+  remediation: Inspect the program and its owner; remove the entry and the file after collecting evidence.
+  match:
+    type: cron.entry
+    tags_any: [command_in_volatile_dir]
+
+- id: PERS-003
+  title: New cron entry
+  severity: medium
+  mitre: [T1053.003]
+  description: A cron entry that is not part of the learned baseline appeared.
+  remediation: Confirm it was added by an administrator or a package; otherwise investigate who added it.
+  match:
+    type: cron.entry
+    drift: cron.entry
+
+- id: PERS-004
+  title: New job that runs at every boot
+  severity: high
+  mitre: [T1053.003]
+  description: >
+    A new @reboot cron entry: a classic way to survive reboots.
+  remediation: Review the command and who created the entry.
+  match:
+    type: cron.entry
+    tags_any: [reboot]
+    drift: cron.entry
+
+- id: PERS-005
+  title: Cron script added or modified
+  severity: medium
+  mitre: [T1053.003]
+  description: A script in /etc/cron.hourly, daily, weekly or monthly is new or its content changed.
+  remediation: Compare with the package that owns it (dpkg -S / rpm -qf) and read what changed.
+  match:
+    type: cron.script
+    drift: cron.script
+
+- id: PERS-006
+  title: systemd service runs a program from a temporary directory
+  severity: critical
+  mitre: [T1543.002, T1036]
+  description: A systemd unit executes code from /tmp, /var/tmp or /dev/shm.
+  remediation: Inspect the unit and the binary, stop and disable the unit after collecting evidence, and find how it was installed.
+  match:
+    type: systemd.unit
+    tags_any: [exec_in_volatile_dir]
+
+- id: PERS-007
+  title: systemd service with download-and-execute or reverse shell commands
+  severity: critical
+  mitre: [T1543.002, T1059]
+  description: An Exec line pipes a download into a shell, decodes base64 or opens a reverse shell.
+  remediation: >
+    Same as for a malicious cron job: preserve the unit file, disable it, hunt for the payload.
+  match:
+    type: systemd.unit
+    tags_any: [pipe_to_shell, base64_exec, reverse_shell]
+
+- id: PERS-008
+  title: New or modified systemd unit
+  severity: high
+  mitre: [T1543.002]
+  description: A unit file created by hand in /etc/systemd/system is new or its content changed.
+  remediation: Read the unit, confirm who created it and why, and compare with your configuration management.
+  match:
+    type: systemd.unit
+    tags_any: [admin_unit]
+    drift: systemd.unit
+
+- id: PERS-009
+  title: Hidden systemd unit
+  severity: high
+  mitre: [T1564]
+  description: A unit whose file name starts with a dot is easy to overlook in listings.
+  remediation: Inspect it and who created it.
+  match:
+    type: systemd.unit
+    tags_any: [hidden_unit]
+
+- id: PERS-010
+  title: New unit enabled at boot
+  severity: low
+  mitre: [T1543.002]
+  description: A unit was enabled in a *.wants directory that was not enabled during the baseline.
+  remediation: Confirm it comes from a package install or an administrator.
+  match:
+    type: systemd.enabled
+    drift: systemd.enabled
+
+- id: PERS-011
+  title: /etc/ld.so.preload is in use
+  severity: critical
+  cwe: [CWE-426]
+  mitre: [T1574.006]
+  description: >
+    The file forces a library into every process. Almost no legitimate system uses it; rootkits do
+    (to hide processes, files and connections).
+  remediation: Inspect the library, treat the machine as compromised, and investigate from a trusted system.
+  match:
+    type: preload.entry
+    tags_any: [ld_so_preload]
+
+- id: PERS-012
+  title: LD_PRELOAD set in an environment or startup file
+  severity: high
+  cwe: [CWE-426]
+  mitre: [T1574.006]
+  description: A startup file sets LD_PRELOAD, which can inject code into programs.
+  remediation: Inspect the file and the library it points to.
+  match:
+    type: startup.file
+    tags_any: [ld_preload]
+
+- id: PERS-013
+  title: Startup file with reverse shell or download-and-execute
+  severity: critical
+  mitre: [T1546.004, T1059]
+  description: A shell startup or login script contains a reverse shell, base64 execution or a pipe into a shell.
+  remediation: Save the file, identify who changed it, and clean it; every login of that user ran it.
+  match:
+    type: startup.file
+    tags_any: [reverse_shell, pipe_to_shell, base64_exec]
+
+- id: PERS-014
+  title: Startup file changed or added
+  severity: medium
+  mitre: [T1546.004]
+  description: A shell startup file (profile, bashrc, profile.d, rc.local, init.d) is new or modified.
+  remediation: Read the change; compare with other users' files and with your configuration management.
+  match:
+    type: startup.file
+    drift: startup.file
+
+- id: PERS-015
+  title: Command aliased to hijack credentials
+  severity: high
+  mitre: [T1546.004, T1056]
+  description: A startup file redefines sudo, su, ssh or passwd, a way to capture passwords.
+  remediation: Remove the alias, change the passwords typed on that account, investigate how the file was altered.
+  match:
+    type: startup.file
+    tags_any: [alias_hijack]
+
+- id: PERS-016
+  title: Anti-forensics commands in a startup file or job
+  severity: medium
+  mitre: [T1070.003]
+  description: Commands that disable shell history or wipe logs (HISTFILE=/dev/null, history -c, truncating /var/log).
+  remediation: Find out who added them and why; assume actions on that account are hard to reconstruct.
+  match:
+    type: startup.file
+    tags_any: [anti_forensics]
+
+- id: PERS-017
+  title: SSH login hook (rc or environment file)
+  severity: medium
+  mitre: [T1546]
+  description: ~/.ssh/rc or ~/.ssh/environment runs code or sets variables at every SSH login of that user.
+  remediation: Read the file; remove it unless an administrator placed it deliberately.
+  match:
+    type: startup.file
+    tags_any: [ssh_rc, ssh_environment]
+
+- id: PERS-018
+  title: Startup file references a temporary directory
+  severity: medium
+  mitre: [T1546.004]
+  description: A startup script that is new or was changed now runs or sources something from /tmp, /var/tmp or /dev/shm.
+  remediation: Inspect the referenced file and the script.
+  match:
+    type: startup.file
+    tags_any: [volatile_dir_reference]
+    drift: startup.file

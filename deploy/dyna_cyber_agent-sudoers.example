@@ -1,0 +1,3 @@
+# /etc/sudoers.d/dyna_cyber_agent   (on a MONITORED machine; chmod 440; check with `visudo -c`)
+# The audit user may run exactly one program as root: the read-only gate. Nothing else.
+audit-ro ALL=(root) NOPASSWD: /usr/local/bin/dyna_cyber_agent-gate

@@ -1,0 +1,50 @@
+[Unit]
+Description=agent_cyber security monitor (read-only)
+Documentation=file:///usr/share/agent_cyber/USAGE.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agent_cyber
+Group=agent_cyber
+ExecStart=/usr/bin/agent_cyber --config /etc/agent_cyber/agent.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+# Where HOME points matters only to the ssh client; keys and known_hosts are given explicitly in the config.
+Environment=HOME=/var/lib/agent_cyber
+
+# --- hardening --------------------------------------------------------------------------------------------------
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/agent_cyber /var/log/agent_cyber
+# The agent must see the REAL /tmp, /dev and home directories of the machine it monitors: no PrivateTmp,
+# no PrivateDevices, and home directories are visible (read-only).
+ProtectHome=read-only
+PrivateTmp=no
+PrivateDevices=no
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# @resources stays allowed: the filesystem scans lower their own priority with setpriority.
+SystemCallFilter=~@privileged
+UMask=0027
+
+# Reading /proc/<pid>/exe, fd and maps of every process of the LOCAL target needs these two capabilities.
+# They are not needed for SSH targets that use the installed gate with sudo. Remove both lines to run unprivileged.
+AmbientCapabilities=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+
+[Install]
+WantedBy=multi-user.target

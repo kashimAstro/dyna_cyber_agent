@@ -1,0 +1,509 @@
+==============================================================================
+agent_cyber - REPORT DI SICUREZZA
+==============================================================================
+  Rischio massimo   : CRITICO
+  Generato il       : 2026-10-23 09:02:25 UTC
+  Host dell'agente  : laptop3
+  Periodo           : 2026-10-22 09:02:25 UTC -> 2026-10-23 09:02:25 UTC
+  Finding aperti    : 310 (3 critico, 229 medio, 78 basso)
+  Nuovi nel periodo : 310
+  Risolti nel periodo: 486
+
+Sintesi AI non disponibile in questo momento (modello non raggiungibile):
+seguono i dati grezzi.
+
+==============================================================================
+FINDING DI SICUREZZA (10)
+==============================================================================
+
+#146  [CRITICO]  LOG-002  Login succeeded after repeated failures from the same address  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : bruteforce|192.168.1.103|2026-10-22
+  MITRE ATT&CK      : T1110, T1078
+  Debolezze (CWE)   : CWE-307 Improper Restriction of Excessive Authentication
+                      Attempts
+  Visto             : 1x (Primo rilevamento: 2026-10-22 21:54:17 UTC, Ultimo
+                      rilevamento: 2026-10-22 21:54:17 UTC)
+
+  An address that failed to log in several times then logged in successfully:
+  the guessing attack probably worked.
+
+  Valutazione AI: probabilmente malevolo (Confidenza 95%, alto)
+    L'accesso riuscito dopo ripetuti tentativi di login falliti da un
+    indirizzo IP specifico è un chiaro indicatore di attacco brute-force.
+    L'utente 'kashim' è stato autenticato dopo 4 fallimenti, il che
+    suggerisce un tentativo di forzare le credenziali.
+    Azioni consigliate:
+      1. Verificare i log di autenticazione per confermare l'accesso effettivo
+         e l'indirizzo IP originale
+      2. Bloccare l'IP '192.168.1.103' tramite firewall (es. iptables o ufw)
+      3. Verificare se l'utente 'kashim' ha accesso privilegiato e rivedere le
+         sue credenziali
+      4. Monitorare ulteriormente gli accessi da questo indirizzo
+
+  Evidenze:
+    day = 2026-10-22
+    distinct_users = 1
+    failures = 4
+    invalid_user_attempts = 0
+    src_ip = 192.168.1.103
+    success_user = kashim
+    users = kashim
+    window_s = 600
+
+#4  [MEDIO]  SYS-006  Execution allowed in a world-writable temporary mount  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : /dev/shm|tmpfs
+  MITRE ATT&CK      : T1059
+  Visto             : 63x (Primo rilevamento: 2026-10-22 21:25:55 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:44 UTC)
+  Severity          : basso -> medio (AI)
+
+  /tmp, /var/tmp or /dev/shm is mounted without noexec, which lets dropped
+  payloads run.
+
+  Valutazione AI: sospetto (Confidenza 100%, medio)
+    Il filesystem /dev/shm è montato senza l'opzione 'noexec', permettendo
+    l'esecuzione di payload eseguibili. Questo rappresenta un rischio di
+    esecuzione non autorizzata.
+    Azioni consigliate:
+      1. Modificare la configurazione del mount per includere l'opzione
+         'noexec'
+      2. Riavviare il sistema per applicare le modifiche
+      3. Verificare che nessun payload eseguibile sia presente in /dev/shm
+
+  Evidenze:
+    device = tmpfs
+    fstype = tmpfs
+    mountpoint = /dev/shm
+    options = rw, nosuid, nodev, inode64, usrquota
+
+#5  [MEDIO]  SYS-006  Execution allowed in a world-writable temporary mount  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : /tmp|tmpfs
+  MITRE ATT&CK      : T1059
+  Visto             : 63x (Primo rilevamento: 2026-10-22 21:25:55 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:44 UTC)
+  Severity          : basso -> medio (AI)
+
+  /tmp, /var/tmp or /dev/shm is mounted without noexec, which lets dropped
+  payloads run.
+
+  Valutazione AI: sospetto (Confidenza 100%, medio)
+    Il filesystem /tmp è montato senza l'opzione 'noexec', permettendo
+    l'esecuzione di payload eseguibili. Questo rappresenta un rischio di
+    esecuzione non autorizzata.
+    Azioni consigliate:
+      1. Modificare la configurazione del mount per includere l'opzione
+         'noexec'
+      2. Riavviare il sistema per applicare le modifiche
+      3. Verificare che nessun payload eseguibile sia presente in /tmp
+
+  Evidenze:
+    device = tmpfs
+    fstype = tmpfs
+    mountpoint = /tmp
+    options = rw, nosuid, nodev, nr_inodes=1048576, inode64, usrquota
+
+#150  [MEDIO]  PKG-004  Packaged system file is missing  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : /usr/lib/x86_64-linux-gnu/libprrte.so.3.0.13|missing
+  MITRE ATT&CK      : T1070.004
+  Visto             : 4x (Primo rilevamento: 2026-10-22 21:54:57 UTC, Ultimo
+                      rilevamento: 2026-10-23 07:49:53 UTC)
+
+  A binary or library that its package says must exist is not on disk. Most
+  often this is a broken or partial installation, or a file removed by hand;
+  less often an attacker removed a security tool.
+
+  Valutazione AI: sospetto (Confidenza 100%, medio)
+    Il file /usr/lib/x86_64-linux-gnu/libprrte.so.3.0.13 è mancante, il che
+    potrebbe indicare un'installazione corrotta o una rimozione intenzionale
+    di uno strumento di sicurezza.
+    Azioni consigliate:
+      1. Verificare l'integrità del pacchetto che dovrebbe contenere questo
+         file
+      2. Ripristinare il file mancante se possibile
+
+  Evidenze:
+    config = false
+    flags = missing
+    manager = dpkg
+    path = /usr/lib/x86_64-linux-gnu/libprrte.so.3.0.13
+
+#147  [BASSO]  FILE-012  Chromium/Electron SUID sandbox helper  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : suid|/snap/chromium/3554/usr/lib/chromium-browser/chrome
+                      -sandbox
+  MITRE ATT&CK      : T1548.001
+  Visto             : 23x (Primo rilevamento: 2026-10-22 21:54:17 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:54 UTC)
+
+  A setuid-root `chrome-sandbox` sits outside the system directories.
+  Chromium-based applications (Electron apps such as balenaEtcher, VS Code,
+  Slack, browsers installed from archives) ship this helper and normally need
+  it. It is a privilege boundary, so it is worth knowing about, but it is not
+  a backdoor by itself.
+
+  Valutazione AI: probabilmente benigno (Confidenza 85%, basso)
+    Il file chrome-sandbox in /snap/chromium/3554/usr/lib/chromium-browser/ è
+    un file SUID che fa parte del pacchetto snap di Chromium. Questo è un
+    comportamento normale per l'ambiente snap e non indica necessariamente
+    attività malevola.
+    Azioni consigliate:
+      1. Verificare la versione installata di Chromium tramite snap
+      2. Controllare se il pacchetto snap è stato aggiornato recentemente
+      3. Assicurarsi che non ci siano modifiche non autorizzate al pacchetto
+         snap
+
+  Evidenze:
+    group = root
+    mode = 4555
+    mode_num = 2413
+    mtime = 1791403064
+    path = /snap/chromium/3554/usr/lib/chromium-browser/chrome-sandbox
+    preset = suid
+    size = 18520
+    type = f
+    user = root
+
+#148  [BASSO]  FILE-012  Chromium/Electron SUID sandbox helper  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : suid|/snap/chromium/3559/usr/lib/chromium-browser/chrome
+                      -sandbox
+  MITRE ATT&CK      : T1548.001
+  Visto             : 23x (Primo rilevamento: 2026-10-22 21:54:17 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:54 UTC)
+
+  A setuid-root `chrome-sandbox` sits outside the system directories.
+  Chromium-based applications (Electron apps such as balenaEtcher, VS Code,
+  Slack, browsers installed from archives) ship this helper and normally need
+  it. It is a privilege boundary, so it is worth knowing about, but it is not
+  a backdoor by itself.
+
+  Valutazione AI: probabilmente benigno (Confidenza 85%, basso)
+    Il file chrome-sandbox in /snap/chromium/3559/usr/lib/chromium-browser/ è
+    un file SUID che fa parte del pacchetto snap di Chromium. Questo è un
+    comportamento normale per l'ambiente snap e non indica necessariamente
+    attività malevola.
+    Azioni consigliate:
+      1. Verificare la versione installata di Chromium tramite snap
+      2. Controllare se il pacchetto snap è stato aggiornato recentemente
+      3. Assicurarsi che non ci siano modifiche non autorizzate al pacchetto
+         snap
+
+  Evidenze:
+    group = root
+    mode = 4555
+    mode_num = 2413
+    mtime = 1792002367
+    path = /snap/chromium/3559/usr/lib/chromium-browser/chrome-sandbox
+    preset = suid
+    size = 18520
+    type = f
+    user = root
+
+#149  [BASSO]  FILE-012  Chromium/Electron SUID sandbox helper  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : suid|/home/kashim/Scaricati/balenaEtcher-linux-x64/chrom
+                      e-sandbox
+  MITRE ATT&CK      : T1548.001
+  Visto             : 23x (Primo rilevamento: 2026-10-22 21:54:17 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:54 UTC)
+
+  A setuid-root `chrome-sandbox` sits outside the system directories.
+  Chromium-based applications (Electron apps such as balenaEtcher, VS Code,
+  Slack, browsers installed from archives) ship this helper and normally need
+  it. It is a privilege boundary, so it is worth knowing about, but it is not
+  a backdoor by itself.
+
+  Valutazione AI: probabilmente benigno (Confidenza 85%, basso)
+    I file chrome-sandbox con permesso SUID sono comuni per applicazioni
+    basate su Chromium come balenaEtcher e VS Code. Questi file sono parte
+    normale del funzionamento dell'applicazione e non rappresentano un
+    backdoor in sé, ma è importante verificarne l'origine e la provenienza.
+    Azioni consigliate:
+      1. Verificare l'origine del file
+         /home/kashim/Scaricati/balenaEtcher-linux-x64/chrome-sandbox
+      2. Controllare se è stato scaricato da un repository ufficiale o se è
+         stato modificato
+      3. Eseguire un controllo antivirus sul file per verificare la presenza
+         di malware
+
+  Evidenze:
+    group = root
+    mode = 4755
+    mode_num = 2541
+    mtime = 1778688245
+    path = /home/kashim/Scaricati/balenaEtcher-linux-x64/chrome-sandbox
+    preset = suid
+    size = 48256
+    type = f
+    user = root
+
+#1  [BASSO]  SYS-004  Weak kernel security setting  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : fs.suid_dumpable
+  MITRE ATT&CK      : T1562
+  Debolezze (CWE)   : CWE-1188 Initialization of a Resource with an Insecure
+                      Default
+  Visto             : 63x (Primo rilevamento: 2026-10-22 21:25:55 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:44 UTC)
+
+  A sysctl value is below the recommended hardening level (ASLR,
+  kptr_restrict, ptrace_scope, redirects...).
+
+  Valutazione AI: sospetto (Confidenza 100%, basso)
+    Il parametro 'fs.suid_dumpable' è impostato su 2 invece di 0, il che può
+    compromettere la sicurezza del sistema. Questo è un problema di sicurezza
+    leggero ma significativo.
+    Azioni consigliate:
+      1. Modificare il parametro sysctl per impostarlo su 0
+      2. Applicare la modifica permanentemente nel file /etc/sysctl.conf
+
+  Evidenze:
+    expected = =0
+    key = fs.suid_dumpable
+    value = 2
+
+#2  [BASSO]  SYS-004  Weak kernel security setting  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : net.ipv4.conf.all.accept_redirects
+  MITRE ATT&CK      : T1562
+  Debolezze (CWE)   : CWE-1188 Initialization of a Resource with an Insecure
+                      Default
+  Visto             : 63x (Primo rilevamento: 2026-10-22 21:25:55 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:44 UTC)
+
+  A sysctl value is below the recommended hardening level (ASLR,
+  kptr_restrict, ptrace_scope, redirects...).
+
+  Valutazione AI: sospetto (Confidenza 100%, basso)
+    Il parametro 'net.ipv4.conf.all.accept_redirects' è impostato su 1 invece
+    di 0, il che può facilitare attacchi di redirect. Questo è un problema
+    di sicurezza leggero ma significativo.
+    Azioni consigliate:
+      1. Modificare il parametro sysctl per impostarlo su 0
+      2. Applicare la modifica permanentemente nel file /etc/sysctl.conf
+
+  Evidenze:
+    expected = =0
+    key = net.ipv4.conf.all.accept_redirects
+    value = 1
+
+#3  [BASSO]  SYS-004  Weak kernel security setting  (NUOVO)
+------------------------------------------------------------------------------
+  Bersaglio         : localhost
+  Soggetto          : net.ipv4.conf.all.send_redirects
+  MITRE ATT&CK      : T1562
+  Debolezze (CWE)   : CWE-1188 Initialization of a Resource with an Insecure
+                      Default
+  Visto             : 63x (Primo rilevamento: 2026-10-22 21:25:55 UTC, Ultimo
+                      rilevamento: 2026-10-23 08:49:44 UTC)
+
+  A sysctl value is below the recommended hardening level (ASLR,
+  kptr_restrict, ptrace_scope, redirects...).
+
+  Valutazione AI: sospetto (Confidenza 100%, basso)
+    Il parametro 'net.ipv4.conf.all.send_redirects' è impostato su 1 invece
+    di 0, il che può facilitare attacchi di redirect. Questo è un problema
+    di sicurezza leggero ma significativo.
+    Azioni consigliate:
+      1. Modificare il parametro sysctl per impostarlo su 0
+      2. Applicare la modifica permanentemente nel file /etc/sysctl.conf
+
+  Evidenze:
+    expected = =0
+    key = net.ipv4.conf.all.send_redirects
+    value = 1
+
+==============================================================================
+VULNERABILITA' E RIFERIMENTI (CVE / CWE / MITRE ATT&CK)
+==============================================================================
+Vulnerabilita' aperte: 300 (228 critico, 72 alto), su 43 pacchetti; 2
+attivamente sfruttate; 220 con correzione disponibile; 300 nuove nel periodo.
+
+localhost / linux 7.0.0-30.30
+  #467 CVE-2026-53266  CVSS 8.8  [ATTIVAMENTE SFRUTTATA]  CWE-787  correzione: 7.0.0-31.31
+  #468 CVE-2026-53362  CVSS 7.8  [ATTIVAMENTE SFRUTTATA]  correzione: 7.0.0-31.31
+  #534 CVE-2026-63795  CVSS 10.0  correzione: 7.0.0-31.31
+  #741 CVE-2026-72407  CVSS 10.0  correzione: 7.0.0-38.38
+  #742 CVE-2026-72408  CVSS 10.0  correzione: 7.0.0-38.38
+  #743 CVE-2026-74280  CVSS 10.0  correzione: 7.0.0-38.38
+  #744 CVE-2026-72421  CVSS 10.0  correzione: 7.0.0-38.38
+  #745 CVE-2026-74309  CVSS 10.0  correzione: 7.0.0-38.38
+    ... +3 altre
+
+localhost / snapd 2.76+ubuntu26.04.3
+  #391 CVE-2026-46595  CVSS 10.0  nessuna correzione nota
+
+localhost / firebird4.0 4.0.6.3221.ds6-2build2
+  #392 CVE-2026-40342  CVSS 9.9  nessuna correzione nota
+
+localhost / tightvnc 1:1.3.10-10build1
+  #8 CVE-2018-20748  CVSS 9.8  CWE-787  correzione: 1.3.9-6.5+deb8u1build0.14.04.1~esm1
+  #15 CVE-2018-20020  CVSS 9.8  CWE-787  correzione: 1.3.9-6.5+deb8u1build0.14.04.1~esm1
+  #18 CVE-2018-7225  CVSS 9.8  CWE-190  correzione: 1.3.9-6.5+deb8u1build0.14.04.1~esm1
+  #21 CVE-2019-15678  CVSS 9.8  CWE-122, CWE-787  correzione: 1.3.9-6.5+deb8u1build0.14.04.1~esm1
+  #22 CVE-2019-15679  CVSS 9.8  CWE-122, CWE-787  correzione: 1.3.9-6.5+deb8u1build0.14.04.1~esm1
+  #23 CVE-2019-8287  CVSS 9.8  CWE-120  correzione: 1.3.9-6.5+deb8u1build0.14.04.1~esm1
+
+localhost / impacket 0.13.0-2
+  #9 CVE-2021-31800  CVSS 9.8  CWE-22  nessuna correzione nota
+
+localhost / babl 1:0.1.124-1
+  #10 CVE-2020-37239  CVSS 9.8  CWE-415  nessuna correzione nota
+
+localhost / ttyd 1.7.7-4build1
+  #11 CVE-2021-34182  CVSS 9.8  CWE-276  nessuna correzione nota
+
+localhost / chromium-browser 2:1snap1-0ubuntu4
+  #12 CVE-2018-1999010  CVSS 9.8  CWE-125  nessuna correzione nota
+
+localhost / dcraw 9.28-8build1
+  #13 CVE-2017-6886  CVSS 9.8  CWE-119  nessuna correzione nota
+  #17 CVE-2017-14265  CVSS 9.8  CWE-119  nessuna correzione nota
+  #346 CVE-2026-20889  CVSS 9.8  nessuna correzione nota
+  #347 CVE-2026-20911  CVSS 9.8  nessuna correzione nota
+  #348 CVE-2026-21413  CVSS 9.8  nessuna correzione nota
+
+localhost / gst-libav1.0 1.28.2-1
+  #14 CVE-2018-1999010  CVSS 9.8  CWE-125  nessuna correzione nota
+
+localhost / libio-compress-brotli-perl 0.019000-1
+  #16 CVE-2020-36846  CVSS 9.8  nessuna correzione nota
+
+localhost / sleuthkit 4.12.1+dfsg-3build1
+  #19 CVE-2019-14531  CVSS 9.8  CWE-125  nessuna correzione nota
+  #20 CVE-2019-14532  CVSS 9.8  CWE-193  nessuna correzione nota
+
+localhost / ruamel.yaml 0.18.10+ds-1build1
+  #24 CVE-2019-20478  CVSS 9.8  nessuna correzione nota
+
+localhost / sssd 2.12.0-1ubuntu5.4
+  #151 CVE-2023-3326  CVSS 9.8  nessuna correzione nota
+
+localhost / zbar 0.23.93-9ubuntu1
+  #152 CVE-2023-40889  CVSS 9.8  correzione: 0.23.92-4ubuntu0.1~esm1
+  #160 CVE-2023-40890  CVSS 9.8  correzione: 0.23.92-4ubuntu0.1~esm1
+
+localhost / filezilla 3.69.6-1
+  #153 CVE-2023-53959  CVSS 9.8  nessuna correzione nota
+
+localhost / poco 1.14.2-3
+  #154 CVE-2023-52389  CVSS 9.8  nessuna correzione nota
+
+localhost / thunderbird 2:1snap1-0ubuntu5
+  #155 CVE-2022-25235  CVSS 9.8  CWE-116  nessuna correzione nota
+  #157 CVE-2022-23852  CVSS 9.8  CWE-190  nessuna correzione nota
+  #162 CVE-2022-37609  CVSS 9.8  nessuna correzione nota
+  #163 CVE-2022-25315  CVSS 9.8  CWE-190  nessuna correzione nota
+  #166 CVE-2022-25236  CVSS 9.8  CWE-668  nessuna correzione nota
+
+localhost / radare2 6.0.7+ds-1
+  #156 CVE-2023-46570  CVSS 9.8  nessuna correzione nota
+  #159 CVE-2023-46569  CVSS 9.8  nessuna correzione nota
+  #161 CVE-2024-29646  CVSS 9.8  nessuna correzione nota
+  #288 CVE-2025-1864  CVSS 9.8  nessuna correzione nota
+
+localhost / mitmproxy 8.1.1-4
+  #158 CVE-2022-24766  CVSS 9.8  nessuna correzione nota
+
+localhost / webkit2gtk 2.52.6-0ubuntu0.26.04.1
+  #164 CVE-2024-43091  CVSS 9.8  nessuna correzione nota
+
+localhost / freeimage 3.18.0+ds2-11build1
+  #165 CVE-2024-31570  CVSS 9.8  nessuna correzione nota
+  #286 CVE-2025-70968  CVSS 9.8  nessuna correzione nota
+
+localhost / assimp 6.0.4+ds-1build1
+  #284 CVE-2025-70067  CVSS 9.8  nessuna correzione nota
+
+localhost / x264 2:0.165.3222+gitb35605ac-3build1
+  #287 CVE-2025-25467  CVSS 9.8  nessuna correzione nota
+
+localhost / mbedtls 3.6.5-0.1ubuntu2
+  #393 CVE-2026-34875  CVSS 9.8  nessuna correzione nota
+  #394 CVE-2026-34877  CVSS 9.8  nessuna correzione nota
+
+localhost / hashcat 7.1.2+ds1-3
+  #395 CVE-2026-42482  CVSS 9.8  nessuna correzione nota
+  #396 CVE-2026-42483  CVSS 9.8  nessuna correzione nota
+  #397 CVE-2026-42484  CVSS 9.8  nessuna correzione nota
+
+localhost / nodejs 22.22.1+dfsg+~cs22.19.15-1ubuntu1
+  #398 CVE-2026-48930  CVSS 9.8  nessuna correzione nota
+
+localhost / ruby3.3 3.3.8-2ubuntu3.1
+  #399 CVE-2026-27820  CVSS 9.8  nessuna correzione nota
+
+altre 240 vulnerabilita' non mostrate (priorita' piu' bassa): usa `agent_cyber --events`
+
+MITRE ATT&CK:
+  T1190  Exploit Public-Facing Application  (60)
+  T1548.001  Abuse Elevation Control Mechanism: Setuid and Setgid  (3)
+  T1562  Impair Defenses  (3)
+  T1059  Command and Scripting Interpreter  (2)
+  T1068  Exploitation for Privilege Escalation  (2)
+  T1070.004  Indicator Removal: File Deletion  (1)
+  T1078  Valid Accounts  (1)
+  T1110  Brute Force  (1)
+
+DEBOLEZZE (CWE):
+  CWE-787  Out-of-bounds Write  (5)
+  CWE-1188  Initialization of a Resource with an Insecure Default  (3)
+  CWE-125  Out-of-bounds Read  (3)
+  CWE-190  Integer Overflow or Wraparound  (3)
+  CWE-119  Improper Restriction of Operations within the Bounds of a Memory Buffer  (2)
+  CWE-122  Heap-based Buffer Overflow  (2)
+  CWE-116  Improper Encoding or Escaping of Output  (1)
+  CWE-120  Buffer Copy without Checking Size of Input (Classic Buffer Overflow)  (1)
+  CWE-193  Off-by-one Error  (1)
+  CWE-22  Path Traversal  (1)
+  CWE-276  Incorrect Default Permissions  (1)
+  CWE-307  Improper Restriction of Excessive Authentication Attempts  (1)
+  CWE-415  Double Free  (1)
+  CWE-668  Exposure of Resource to Wrong Sphere  (1)
+
+INTELLIGENCE SULLE VULNERABILITA':
+* Database CVE: 7895 voci, 1754 sfruttate attivamente (CISA KEV), 0
+  descrizioni di debolezze (CWE). Aggiornato: NVD mai, KEV 2026-10-23 08:24:00
+  UTC, CWE 2026-10-23 08:30:20 UTC
+* Vulnerabilita' sfruttate attivamente attualmente presenti sui tuoi sistemi:
+  2
+* Nuove vulnerabilita' trovate sui tuoi sistemi nel periodo: 784 (di cui alte
+  o critiche: 2)
+* Classi di debolezza (CWE) piu' frequenti tra queste: CWE-125 Out-of-bounds
+  Read (20); CWE-119 Improper Restriction of Operations within the Bounds of a
+  Memory Buffer (14); CWE-787 Out-of-bounds Write (14); CWE-20 Improper Input
+  Validation (5); CWE-120 Buffer Copy without Checking Size of Input (Classic
+  Buffer Overflow) (4)
+
+==============================================================================
+STATO DEI COLLECTOR
+==============================================================================
+   localhost / files: 24 riusciti, 0 falliti, Ultimo successo 2026-10-23 08:49:54 UTC
+   localhost / integrity: 5 riusciti, 0 falliti, Ultimo successo 2026-10-23 07:49:53 UTC
+!! localhost / logs: 1168 riusciti, 0 falliti, Ultimo successo 2026-10-23 08:56:26 UTC  <-- NON AGGIORNATO
+!! localhost / network: 2327 riusciti, 0 falliti, Ultimo successo 2026-10-23 08:56:26 UTC  <-- NON AGGIORNATO
+   localhost / packages: 5 riusciti, 0 falliti, Ultimo successo 2026-10-23 07:51:08 UTC
+   localhost / persistence: 121 riusciti, 0 falliti, Ultimo successo 2026-10-23 08:52:43 UTC
+!! localhost / processes: 1168 riusciti, 0 falliti, Ultimo successo 2026-10-23 08:56:26 UTC  <-- NON AGGIORNATO
+   localhost / system: 63 riusciti, 0 falliti, Ultimo successo 2026-10-23 08:49:44 UTC
+   localhost / users: 121 riusciti, 0 falliti, Ultimo successo 2026-10-23 08:52:42 UTC
+   localhost / vulns: 12 riusciti, 0 falliti, Ultimo successo 2026-10-23 07:51:08 UTC
+
+------------------------------------------------------------------------------
+La valutazione AI e' un supporto: verifica sempre le evidenze prima di agire.
+Il rischio mostrato e' il maggiore tra quello della regola e quello dell'AI.
+Per accettare un finding come normale (aggiorna la baseline): agent_cyber
+--config <file> --accept <id>

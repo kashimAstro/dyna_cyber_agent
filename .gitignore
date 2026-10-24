@@ -1,0 +1,10 @@
+build/
+build-debug/
+.cache/
+compile_commands.json
+
+# project instructions for Claude Code (local, not part of the repository)
+CLAUDE.md
+
+# editor leftovers
+*.swp

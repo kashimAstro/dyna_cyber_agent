@@ -1,0 +1,142 @@
+language: it           # it | en - ONE setting for the mail labels, the AI text and the web console
+log_level: info
+log_file: ""            # empty = stderr only
+state_dir: /var/lib/dyna_cyber_agent
+retention_days: 14      # snapshots older than this are pruned
+rules_dir: /etc/dyna_cyber_agent/rules   # copy rules/default/*.yaml here (or point at the repo copy)
+
+baseline:
+  learning: 7d          # drift rules stay quiet while the normal state is learned
+
+# LLM assessment (llama-server with Qwen3-Coder Q8). Suggested server start:
+#   llama-server -m Qwen3-Coder-...-Q8_0.gguf -c 32768 --jinja -ngl 99 --host 127.0.0.1 --port 8080
+# The model only reads the findings; it has no tools and cannot act on any machine.
+llm:
+  enabled: true
+  url: http://127.0.0.1:8080
+  timeout: 300            # seconds per request
+  temperature: 0.2
+  max_tokens: 4096
+  context_tokens: 32768   # must not exceed llama-server -c (check with --llm-ping)
+  max_findings_per_call: 8
+  batch_window: 30s       # group related new findings into one call
+  # api_key_file: /etc/dyna_cyber_agent/llm.key   # only if llama-server runs with --api-key
+  # focus_file: /etc/dyna_cyber_agent/focus.md    # "today watch the web servers", etc.
+
+# Vulnerability intelligence: public CVE / CISA KEV / CWE feeds downloaded to THIS machine and matched against the
+# software installed on the targets (see USAGE.md section 13). `osv: true` sends the NAMES AND VERSIONS of the installed
+# source packages to api.osv.dev (nothing else); set it to false if they must not leave your network.
+vuln:
+  enabled: true
+  refresh_every: 6h
+  match_every: 1h
+  osv: true
+  cpe_match: auto          # auto | always | never
+  nvd_initial_days: 120    # first download: CVEs modified in the last N days (~11 min without an API key)
+  # nvd_api_key_file: /etc/dyna_cyber_agent/nvd.key
+  min_cvss: 7.0
+  new_within_days: 14
+  epss: true               # EPSS exploitation-probability scores (daily file from FIRST.org, ~3 MB)
+  exposure: true           # rank by reach: is the vulnerable package listening on the network / running? (needs `packages`, `network`, `processes`)
+
+# Analysis that goes beyond one rule on one observation. Every part can be switched off on its own (see USAGE.md section 16).
+analysis:
+  explain_updates:         # mark findings that a recent package upgrade explains (new program, restarted service)
+    enabled: true
+    window: 7d
+  incidents:               # chain related findings (same address, account, program) into incidents with a timeline
+    enabled: true
+    window: 24h            # findings further apart than this are not linked
+    min_findings: 2
+  peers:                   # compare targets of the same `group:` with each other
+    enabled: true
+    min_group_size: 3      # members needed before "the others do not have it" means anything
+    min_share: 0.8         # share of the other members that must lack (or have) the item
+  logs:
+    templates: true        # learn the shape of every log message no parser understands; new shapes are findings
+    max_new_per_cycle: 25
+  outbound:
+    beaconing: true        # steady connections to the same outside address
+    new_countries: true    # outbound connections to a country never seen before (needs the geo database: --geo-update)
+    traffic_spikes: true   # outbound traffic far above the interface's usual rate
+  travel:                  # logins: impossible travel, new country, unusual hour (needs the geo database)
+    enabled: true
+    max_speed_kmh: 900
+    min_distance_km: 500
+
+# Public IP blocklists (botnet C2, hijacked networks, known attackers) downloaded to THIS machine and matched locally.
+# Nothing about your machines is ever sent. `lists:` replaces the built-in set (feodo, spamhaus_drop, firehol_level1,
+# et_compromised, blocklist_de_ssh); check each list's terms of use before relying on it.
+threat_intel:
+  enabled: true
+  refresh_every: 12h
+  # dir: /var/lib/dyna_cyber_agent/intel
+  # lists:
+  #   - {name: feodo, url: "https://feodotracker.abuse.ch/downloads/ipblocklist.txt", category: c2}   # c2 | compromised | attacker | scanner
+
+alerting:
+  min_severity: high      # findings at/above this (rule severity or AI risk, whichever is higher) are mailed at once
+  alert_delay: 2m         # wait for the AI assessment and related findings before mailing
+  cooldown: 5m            # minimum gap between alert mails (critical skips it)
+  max_per_hour: 6         # hard cap on alert mails
+  subject_prefix: "[dyna_cyber_agent]"
+  recipients: [admin@example.com]
+  smtp:
+    host: smtp.example.com
+    port: 587
+    tls: starttls         # starttls | ssl | none (none is refused together with a password)
+    user: agent
+    password_file: /etc/dyna_cyber_agent/smtp.pass   # chmod 600
+    from: "dyna_cyber_agent <agent@example.com>"
+  digest:
+    enabled: true
+    every: 24h            # or `at: "08:00"` for a fixed local time
+    min_severity: low
+    send_when_empty: false # true = also send a "nothing new" report as heartbeat (a stopped collector always forces a mail)
+
+# Local web console (read-only views, targeted AI analyses, report previews). The token is created in
+# <state_dir>/web.token the first time. Keep it on loopback and reach it with an SSH tunnel if it is remote:
+#   ssh -L 8484:127.0.0.1:8484 monitor01      then open http://127.0.0.1:8484/
+web:
+  enabled: false
+  listen: 127.0.0.1
+  port: 8484
+  # token_file: /etc/dyna_cyber_agent/web.token
+
+targets:
+  # The machine the agent runs on.
+  - name: localhost
+    transport: local
+    collectors: all
+
+  # A remote machine, read over SSH (read-only). Nothing has to be installed on it ("stream" gate).
+  # Visibility is limited to what the ssh user may read; see USAGE.md for the recommended hardened setup.
+  - name: web01
+    transport: ssh
+    host: 10.0.0.5
+    port: 22
+    user: audit-ro
+    key: /etc/dyna_cyber_agent/keys/web01             # private key of the agent (chmod 600)
+    known_hosts: /etc/dyna_cyber_agent/known_hosts    # host keys are ALWAYS verified: add them beforehand
+    # all = processes, network, users, logs, persistence, system, files, integrity, packages, vulns, peers, crossview, netflow
+    collectors: [processes, network, users, logs, persistence, system, crossview, netflow, packages, vulns]
+    # group: web              # machines with the same group are compared with each other (3 or more needed): what exists on ONE of them is reported
+    interval: { processes: 30s, network: 15s }
+    # logs are autodetected; override or extend them if needed ("web:" / "auth:" / "kernel:" force the type)
+    log_paths: ["auth:/var/log/auth.log", "web:/var/log/nginx/*.log"]
+    # log_backfill_kb: 256      # also read the last 256 KiB of each log the first time it is seen
+
+  # Hardened setup: gate script installed on the target and run through sudo, so that the key can do
+  # nothing but the read-only requests of the gate, with the privileges needed to see every process.
+  - name: db01
+    transport: ssh
+    host: db01.example.com
+    user: audit-ro
+    key: /etc/dyna_cyber_agent/keys/db01
+    known_hosts: /etc/dyna_cyber_agent/known_hosts
+    proxy_jump: ops@bastion.example.com:2222     # optional bastion
+    gate: installed
+    gate_path: /usr/local/bin/dyna_cyber_agent-gate
+    sudo: true
+    connect_timeout: 10                          # seconds
+    op_timeout: 60                               # seconds per batch of reads

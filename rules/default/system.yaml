@@ -1,0 +1,225 @@
+# System state rules: kernel modules, sysctl, mounts, resolver/hosts, sshd configuration, interfaces,
+# device nodes (collector `system`).
+
+- id: SYS-001
+  title: New unsigned or out-of-tree kernel module
+  severity: high
+  mitre: [T1547.006]
+  description: A kernel module not in the baseline was loaded and is unsigned or out-of-tree. Kernel rootkits arrive this way.
+  remediation: Identify it (modinfo, lsmod, dmesg), confirm it is a known driver, and compare its file with the package.
+  match:
+    type: kernel.module
+    tags_any: [module_unsigned, module_out_of_tree]
+    drift: kernel.module
+
+- id: SYS-002
+  title: New kernel module loaded
+  severity: medium
+  mitre: [T1547.006]
+  description: A kernel module that was not part of the baseline was loaded.
+  remediation: Check whether it came from a driver, hardware or package change.
+  match:
+    type: kernel.module
+    drift: kernel.module
+
+- id: SYS-003
+  title: Kernel taint flags changed
+  severity: medium
+  mitre: [T1547.006]
+  description: The kernel taint value has a flag that was not present during the baseline (unsigned or out-of-tree module, forced load...).
+  remediation: Look at dmesg for the event that tainted the kernel.
+  match:
+    type: kernel.taint
+    drift: kernel.taint
+
+- id: SYS-004
+  title: Weak kernel security setting
+  severity: low
+  cwe: [CWE-1188]
+  mitre: [T1562]
+  description: A sysctl value is below the recommended hardening level (ASLR, kptr_restrict, ptrace_scope, redirects...).
+  remediation: Set the recommended value in /etc/sysctl.d/ unless there is a documented reason.
+  match:
+    type: sysctl.value
+    tags_any: [weak_setting]
+
+- id: SYS-005
+  title: Kernel setting changed since the baseline
+  severity: medium
+  mitre: [T1562.001]
+  description: A monitored sysctl value differs from the learned one. Attackers weaken settings (ASLR, ptrace) to ease exploitation.
+  remediation: Find who changed it (sysctl.d files, shell history).
+  match:
+    type: sysctl.value
+    drift: sysctl.value
+
+- id: SYS-006
+  title: Execution allowed in a world-writable temporary mount
+  severity: low
+  mitre: [T1059]
+  description: /tmp, /var/tmp or /dev/shm is mounted without noexec, which lets dropped payloads run.
+  remediation: Mount them with noexec,nosuid,nodev if no application needs to execute from there.
+  match:
+    type: mount.entry
+    tags_any: [exec_allowed_in_tmp]
+
+- id: SYS-007
+  title: New mount point
+  severity: low
+  mitre: [T1547]
+  description: A filesystem mount that was not in the baseline appeared (including FUSE mounts).
+  remediation: Confirm it is expected (network share, external disk, container).
+  match:
+    type: mount.entry
+    drift: mount.entry
+
+- id: SYS-008
+  title: DNS server changed
+  severity: high
+  mitre: [T1565.001]
+  description: /etc/resolv.conf lists a name server that was not in the baseline. A rogue resolver redirects traffic.
+  remediation: Verify the server belongs to your network; check DHCP and resolver configuration for tampering.
+  match:
+    type: net.dns
+    drift: net.dns
+
+- id: SYS-009
+  title: New entry in /etc/hosts
+  severity: medium
+  mitre: [T1565.001]
+  description: A hosts entry that was not in the baseline overrides name resolution for a host name.
+  remediation: Check which name it redirects and who added it.
+  match:
+    type: net.hosts_entry
+    drift: net.hosts
+
+- id: SYS-010
+  title: SSH allows direct root login
+  severity: medium
+  cwe: [CWE-250]
+  mitre: [T1021.004]
+  description: sshd_config sets PermitRootLogin yes.
+  remediation: Set PermitRootLogin no (or prohibit-password) and use sudo.
+  match:
+    type: sshd.option
+    tags_any: [permit_root_login]
+
+- id: SYS-011
+  title: SSH allows empty passwords
+  severity: critical
+  cwe: [CWE-258]
+  mitre: [T1078]
+  description: sshd_config sets PermitEmptyPasswords yes.
+  remediation: Set PermitEmptyPasswords no immediately and lock any account without a password.
+  match:
+    type: sshd.option
+    tags_any: [permit_empty_passwords]
+
+- id: SYS-012
+  title: SSH accepts user-supplied environment
+  severity: high
+  cwe: [CWE-250]
+  mitre: [T1574]
+  description: PermitUserEnvironment lets users set variables such as LD_PRELOAD for their SSH session (a known privilege escalation and backdoor aid).
+  remediation: Set PermitUserEnvironment no.
+  match:
+    type: sshd.option
+    tags_any: [permit_user_environment]
+
+- id: SYS-013
+  title: SSH keys fetched by an external command
+  severity: medium
+  mitre: [T1098.004]
+  description: >
+    AuthorizedKeysCommand is set: that command decides who may log in.
+  remediation: Verify the command and its file are owned by root and expected.
+  match:
+    type: sshd.option
+    tags_any: [authorized_keys_command]
+
+- id: SYS-014
+  title: SSH forwarding or tunnelling enabled
+  severity: medium
+  mitre: [T1572]
+  description: GatewayPorts or PermitTunnel is enabled, which allows exposing ports or building VPN-like tunnels over SSH.
+  remediation: Disable them unless required.
+  match:
+    type: sshd.option
+    tags_any: [gateway_ports, permit_tunnel]
+
+- id: SYS-015
+  title: SSH password authentication enabled
+  severity: low
+  cwe: [CWE-307]
+  mitre: [T1110]
+  description: Password logins are accepted over SSH, exposing the host to guessing attacks.
+  remediation: Use keys only (PasswordAuthentication no) where possible.
+  match:
+    type: sshd.option
+    tags_any: [password_authentication]
+
+- id: SYS-016
+  title: sshd configuration changed since the baseline
+  severity: medium
+  mitre: [T1562]
+  description: A monitored sshd option differs from the learned configuration.
+  remediation: Review the change in /etc/ssh/sshd_config and sshd_config.d.
+  match:
+    type: sshd.option
+    drift: sshd.option
+
+- id: SYS-017
+  title: Network interface in promiscuous mode
+  severity: high
+  mitre: [T1040]
+  description: >
+    An interface listens to all traffic: a sniffer is running (bridges, docker and virtual interfaces excluded).
+  remediation: Find the process holding a packet socket and confirm it is expected.
+  match:
+    type: net.iface
+    tags_any: [promiscuous]
+    where:
+      - {not: {field: name, op: regex, value: '^(docker|br-|veth|virbr|cni|flannel|cali|tap|vnet|lxc|tun|wg|bond|vlan)'}}
+
+- id: SYS-018
+  title: Regular file in /dev
+  severity: high
+  mitre: [T1036, T1564]
+  description: /dev should only contain device nodes, sockets and links. A regular file there is a common hiding place.
+  remediation: Inspect the file (stat, file, strings) and the process that created it.
+  match:
+    type: dev.node
+    tags_any: [regular_file_in_dev]
+
+- id: SYS-019
+  title: Hidden executable in shared memory
+  severity: critical
+  mitre: [T1564.001, T1059]
+  description: >
+    A hidden, executable file in /dev/shm: memory-backed, lost at reboot, favoured by malware.
+  remediation: Copy it for analysis, identify the process running it, then remove it.
+  match:
+    type: dev.node
+    tags_all: [hidden_file, executable]
+
+- id: SYS-020
+  title: New world-writable device node
+  severity: medium
+  cwe: [CWE-732]
+  mitre: [T1222.002]
+  description: A device node outside the usual safe set (null, zero, random, tty...) that anyone can write appeared. Many real devices are like this (GPU, FUSE), so only new ones are reported.
+  remediation: Confirm a driver or hardware change explains it; otherwise fix the permissions (udev rules) and check how they changed.
+  match:
+    type: dev.node
+    tags_any: [world_writable_device]
+    drift: dev.node
+
+- id: SYS-021
+  title: New device node
+  severity: low
+  mitre: [T1200]
+  description: A device node that was not in the baseline appeared in /dev.
+  remediation: Confirm a hardware or driver change explains it.
+  match:
+    type: dev.node
+    drift: dev.node

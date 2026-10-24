@@ -1,0 +1,209 @@
+# Filesystem and package integrity rules (collectors `files` and `integrity`).
+
+- id: FILE-001
+  title: SUID/SGID file outside system directories
+  severity: high
+  cwe: [CWE-269]
+  mitre: [T1548.001]
+  description: A setuid or setgid file lives outside the usual system directories (home, /tmp, /var, /opt...). Attackers leave SUID shells as backdoors.
+  remediation: Inspect the file and its owner, compare with the package database, and remove the SUID bit or the file.
+  match:
+    type: file.entry
+    tags_all: [outside_system_dirs]
+    where:
+      - {field: preset, op: equals, value: suid}
+      - {not: {field: path, op: regex, value: '/chrome-sandbox$'}}
+
+- id: FILE-002
+  title: New SUID/SGID file
+  severity: high
+  cwe: [CWE-269]
+  mitre: [T1548.001]
+  description: A setuid/setgid file that was not in the baseline appeared (or an existing one changed).
+  remediation: Confirm it comes from a package update; otherwise treat it as a privilege-escalation backdoor.
+  match:
+    type: file.entry
+    drift: file.suid
+    where:
+      - {not: {field: path, op: regex, value: '/chrome-sandbox$'}}
+
+- id: FILE-012
+  title: Chromium/Electron SUID sandbox helper
+  severity: low
+  mitre: [T1548.001]
+  description: >
+    A setuid-root `chrome-sandbox` sits outside the system directories. Chromium-based applications (Electron apps
+    such as balenaEtcher, VS Code, Slack, browsers installed from archives) ship this helper and normally need it.
+    It is a privilege boundary, so it is worth knowing about, but it is not a backdoor by itself.
+  remediation: >
+    Confirm the application is one you installed (`dpkg -S` does not know archives: check where it came from) and
+    keep it updated, since the sandbox helper has had privilege-escalation bugs. Accept the finding if it is expected.
+  match:
+    type: file.entry
+    tags_any: [suid, sgid]
+    where:
+      - {field: preset, op: equals, value: suid}
+      - {field: path, op: regex, value: '/chrome-sandbox$'}
+      - {field: user, op: equals, value: root}
+
+- id: FILE-003
+  title: Interpreter or general tool installed SUID
+  severity: high
+  cwe: [CWE-269]
+  mitre: [T1548.001]
+  description: A shell, interpreter, editor or file utility has the setuid bit. This gives any user a root shell or file access (see GTFOBins).
+  remediation: Remove the SUID bit (chmod u-s) unless there is a documented need.
+  match:
+    type: file.entry
+    tags_all: [suid_gtfobin, suid_root]
+
+- id: FILE-004
+  title: Binary executable in a temporary directory
+  severity: high
+  mitre: [T1059, T1036]
+  description: An ELF or Windows executable sits in /tmp, /var/tmp or /dev/shm.
+  remediation: Identify its owner and the process using it; hash it and check it against threat intelligence before removing.
+  match:
+    type: file.entry
+    tags_all: [executable, binary_executable_format]
+    where:
+      - {field: preset, op: equals, value: volatile}
+
+- id: FILE-005
+  title: Hidden executable in a temporary directory
+  severity: high
+  mitre: [T1564.001]
+  description: An executable file in a dot-directory or with a dot-name in /tmp, /var/tmp or /dev/shm.
+  remediation: Inspect and identify what runs it.
+  match:
+    type: file.entry
+    tags_all: [executable, hidden]
+    where:
+      - {field: preset, op: equals, value: volatile}
+
+- id: FILE-006
+  title: Executable script in a temporary directory
+  severity: low
+  mitre: [T1059]
+  description: A script with the shebang marker is executable in a temporary directory.
+  remediation: Read it and identify who runs it (cron, a service, a user).
+  match:
+    type: file.entry
+    tags_all: [executable, script_file]
+    where:
+      - {field: preset, op: equals, value: volatile}
+
+- id: FILE-007
+  title: SUID/SGID file in a temporary directory
+  severity: critical
+  cwe: [CWE-269]
+  mitre: [T1548.001]
+  description: A temporary directory holds a file with the setuid or setgid bit, a typical local privilege-escalation artefact.
+  remediation: Treat it as an active compromise. Identify the owner, the creation time and the process, then remove it.
+  match:
+    type: file.entry
+    tags_any: [setuid_or_setgid]
+
+- id: FILE-008
+  title: World-writable file in a binary directory
+  severity: high
+  cwe: [CWE-732]
+  mitre: [T1222.002, T1574]
+  description: >
+    Anyone can modify a file inside /bin, /usr/bin, /usr/lib or similar: they can replace a program run by root.
+  remediation: Fix the permissions and verify the file content against the package.
+  match:
+    type: file.entry
+    tags_all: [world_writable_file, in_binary_dir]
+
+- id: FILE-009
+  title: World-writable file in a system directory
+  severity: medium
+  cwe: [CWE-732]
+  mitre: [T1222.002]
+  description: A file in /etc, /usr, /boot or /opt can be modified by any user.
+  remediation: Remove world write permission; check whether the content was tampered with.
+  match:
+    type: file.entry
+    tags_all: [world_writable_file]
+
+- id: FILE-010
+  title: World-writable directory without sticky bit
+  severity: medium
+  cwe: [CWE-732]
+  mitre: [T1222.002]
+  description: A directory in a system location lets anyone create or replace files inside it.
+  remediation: Remove world write permission or add the sticky bit.
+  match:
+    type: file.entry
+    tags_all: [world_writable_dir]
+
+- id: FILE-011
+  title: New executable in /usr/local, /opt or /srv
+  severity: medium
+  mitre: [T1036]
+  description: An executable that is not in the baseline appeared (or changed) in a location outside the package manager.
+  remediation: Confirm it is a deployment you did; otherwise inspect and hash it.
+  match:
+    type: file.entry
+    drift: file.localexec
+
+- id: PKG-001
+  title: System file differs from its package
+  severity: high
+  mitre: [T1554, T1036]
+  description: A binary or library installed by a package has different content than the package shipped.
+  remediation: Compare with a clean copy (reinstall the package in a lab, check the checksum), and investigate how it was changed.
+  match:
+    type: pkg.verify
+    tags_any: [system_binary_modified]
+
+- id: PKG-004
+  title: Packaged system file is missing
+  severity: medium
+  mitre: [T1070.004]
+  description: >
+    A binary or library that its package says must exist is not on disk. Most often this is a broken or partial
+    installation, or a file removed by hand; less often an attacker removed a security tool.
+  remediation: >
+    Look at the package (`dpkg -V <package>`, `dpkg -S <path>`). If you do not need it, remove or reinstall the
+    package; if it is a security tool or a core system file, treat it as suspicious and check the auth log around
+    the time it disappeared.
+  match:
+    type: pkg.verify
+    tags_any: [system_file_missing]
+
+- id: PKG-002
+  title: Permissions of a packaged file changed
+  severity: medium
+  cwe: [CWE-732]
+  mitre: [T1222.002]
+  description: A packaged file has a different mode than the package defines.
+  remediation: Restore the packaged permissions and find who changed them.
+  match:
+    type: pkg.verify
+    tags_any: [permissions_changed]
+
+- id: PKG-003
+  title: Security-sensitive configuration file modified
+  severity: medium
+  mitre: [T1098]
+  description: A packaged configuration file in a security-critical location (accounts, sudo, SSH, PAM) differs from the package default.
+  remediation: Review the change; this is expected when you configured it, suspicious otherwise.
+  match:
+    type: pkg.verify
+    tags_all: [config_file, content_changed]
+    where:
+      - {field: path, op: regex, value: '^/etc/(passwd|shadow|group|gshadow|sudoers|ssh/|pam\.d/|security/|ld\.so)'}
+
+- id: PKG-005
+  title: Reboot required after an update
+  severity: low
+  mitre: [T1068]
+  description: >
+    An installed update (often the kernel or a core library) only takes effect after a reboot, so the machine still
+    runs the vulnerable code. The packages that asked for it are listed in the evidence.
+  remediation: Schedule a reboot in a maintenance window. The finding closes by itself once the marker disappears.
+  match:
+    type: os.reboot_required
+    tags_any: [reboot_pending]

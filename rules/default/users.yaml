@@ -1,0 +1,83 @@
+# Account and privilege rules. Observation types: user, authorized_key, sudoers_line.
+
+- id: USR-001
+  title: Non-root account with UID 0
+  severity: critical
+  mitre: [T1136.001, T1078]
+  description: Another account has the same privileges as root, a classic persistence trick.
+  remediation: Verify who created it and when (auth logs, `stat /etc/passwd`); remove it and rotate root credentials.
+  match:
+    type: user
+    tags_any: [uid0_not_root]
+
+- id: USR-002
+  title: Account with an empty password and a login shell
+  severity: critical
+  cwe: [CWE-258]
+  mitre: [T1078, T1110]
+  description: Anyone can log in as this user without a password if the service allows it.
+  remediation: Lock the account (`passwd -l`) or set a strong password.
+  match:
+    type: user
+    tags_all: [empty_password, login_shell]
+
+- id: USR-003
+  title: New user account
+  severity: high
+  mitre: [T1136.001]
+  description: An account that is not part of the baseline appeared.
+  remediation: Confirm it was created by an administrator. Otherwise lock it and investigate who created it.
+  match:
+    type: user
+    drift: user.account
+
+- id: USR-004
+  title: New SSH authorized key
+  severity: high
+  mitre: [T1098.004]
+  description: A public key not in the baseline was added to authorized_keys, a common persistence method.
+  remediation: Confirm the key owner. Remove it if unknown and check how the file was modified.
+  match:
+    type: authorized_key
+    drift: ssh.key
+
+- id: USR-005
+  title: SSH key allowed for root
+  severity: medium
+  cwe: [CWE-250]
+  mitre: [T1098.004]
+  description: root has an authorized key, which allows direct root login with that key.
+  remediation: Prefer named users with sudo; if required, restrict the key with `from=` and `command=`.
+  match:
+    type: authorized_key
+    tags_any: [root_key]
+
+- id: USR-006
+  title: New sudo rule
+  severity: high
+  mitre: [T1548.003]
+  description: A sudoers line that is not part of the baseline was added.
+  remediation: Review the rule and who edited the file.
+  match:
+    type: sudoers_line
+    drift: sudo.rule
+
+- id: USR-007
+  title: Sudo rule without password
+  severity: medium
+  mitre: [T1548.003]
+  description: A sudoers rule uses NOPASSWD, so privilege escalation requires no secret.
+  remediation: Restrict NOPASSWD to the exact commands needed, or remove it.
+  match:
+    type: sudoers_line
+    tags_any: [nopasswd]
+
+- id: USR-008
+  title: User added to a privileged group
+  severity: high
+  mitre: [T1098]
+  description: A user joined sudo, wheel, admin, docker or root and this was not in the baseline.
+  remediation: Confirm the change with the account owner and review the group history.
+  match:
+    type: user
+    drift: user.privgroup

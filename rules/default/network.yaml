@@ -1,0 +1,175 @@
+# Network rules. Fields from `socket.inet`: proto, local_addr, local_port, remote_addr,
+# remote_port, state, uid, owners[].{pid,comm}. Tags: listening, exposed, raw_socket.
+# `socket.unix`: path, type, listening, owners. `socket.packet`: type, proto, owners.
+
+- id: NET-001
+  title: New port exposed to the network
+  severity: high
+  cwe: [CWE-668]
+  mitre: [T1571, T1205]
+  description: A service started listening on a non-local address that is not part of the baseline.
+  remediation: Identify the owning process (`ss -tulpn`). If unexpected, stop it and review recent logins and process starts.
+  match:
+    type: socket.inet
+    tags_all: [listening, exposed]
+    drift: net.listen
+
+- id: NET-002
+  title: New local-only listener
+  severity: low
+  description: A new service listens on loopback only. Usually harmless, but local backdoors use it too.
+  remediation: Confirm the process is expected.
+  match:
+    type: socket.inet
+    tags_all: [listening]
+    drift: net.listen
+    where:
+      - {field: local_addr, op: regex, value: '^(127\.|::1$)'}
+
+- id: NET-003
+  title: New packet socket (possible sniffer)
+  severity: high
+  mitre: [T1040]
+  description: A process opened a raw packet socket that was not seen before (tcpdump, a sniffer or a rootkit can do this).
+  remediation: Identify the owner process and confirm who started it and why.
+  match:
+    type: socket.packet
+    drift: net.packet
+
+- id: NET-004
+  title: New raw socket
+  severity: medium
+  mitre: [T1095]
+  description: A process opened a raw IP socket that was not seen before (custom protocols, ICMP tunnels, scanners).
+  remediation: Identify the owner process.
+  match:
+    type: socket.inet
+    tags_any: [raw_socket]
+    drift: net.raw
+
+- id: NET-005
+  title: Possible reverse shell
+  severity: critical
+  mitre: [T1059.004, T1071]
+  description: A shell or netcat-like process holds an established connection to a non-local host.
+  remediation: Isolate the host from the network immediately, preserve process memory, and investigate the parent chain.
+  match:
+    type: socket.inet
+    where:
+      - {field: state, op: equals, value: ESTABLISHED}
+      - {field: remote_addr, op: regex, value: '^(?!127\.|::1$)'}
+      - {field: owners.comm, op: regex, value: '^(sh|bash|dash|zsh|ksh|csh|tcsh|nc|ncat|netcat|socat)$'}
+
+- id: NET-006
+  title: Connection to a port commonly used by backdoors
+  severity: high
+  mitre: [T1571]
+  description: An outbound connection uses a port typical of reverse shells, IRC bots or remote-access tools.
+  remediation: Identify the owning process and the destination; block the destination at the firewall.
+  match:
+    type: socket.inet
+    where:
+      - {field: state, op: in, value: [ESTABLISHED, SYN_SENT]}
+      - {field: remote_port, op: in, value: [4444, 1337, 31337, 6667, 6697, 5555, 9001, 12345]}
+      - {field: remote_addr, op: regex, value: '^(?!127\.|::1$)'}
+
+- id: NET-007
+  title: Connection to a destination never seen before
+  severity: low
+  mitre: [T1071]
+  description: A process connected to an address/port that is not part of the learned baseline.
+  remediation: Check the destination reputation and whether the owning program normally talks to the Internet.
+  match:
+    type: socket.inet
+    drift: net.outbound
+
+- id: NET-008
+  title: Unix socket in a temporary directory
+  severity: medium
+  mitre: [T1559]
+  description: A listening unix socket lives in /tmp, /var/tmp or /dev/shm, a location used by implants for local C2 and by attackers to hijack IPC.
+  remediation: Identify the owner process and check the permissions of the socket.
+  match:
+    type: socket.unix
+    tags_all: [listening, in_volatile_dir]
+    drift: net.unix
+
+- id: NET-009
+  title: High-risk service exposed to the network
+  severity: high
+  cwe: [CWE-668]
+  mitre: [T1190, T1133]
+  description: >
+    A service that is dangerous when reachable remotely (telnet, Docker API, Redis, MongoDB,
+    Elasticsearch, memcached, VNC, RDP, SMB, rsync, etcd, kubelet) listens on a non-local address.
+  remediation: Bind it to localhost or a private interface, add authentication/firewall rules.
+  match:
+    type: socket.inet
+    tags_all: [listening, exposed]
+    where:
+      - {field: proto, op: in, value: [tcp, tcp6]}
+      - {field: local_port, op: in, value: [23, 445, 873, 2375, 2379, 3389, 5900, 6379, 9200, 10250, 11211, 27017]}
+
+- id: NET-030
+  title: Steady, repeated connections to the same address (beaconing)
+  severity: medium
+  mitre: [T1071, T1573]
+  description: >
+    A program opens connections to the same address and port at a regular pace (see period and jitter in the
+    evidence). Malware does exactly this to ask its controller for orders. Legitimate software that polls (update
+    checks, monitoring agents, health checks) does it too, which is why the baseline learns the ones that were
+    already there.
+  remediation: >
+    Identify the program (comm, owner) and the destination. If it is software you run, accept the finding; if you
+    cannot explain it, capture the traffic from the network side and look at the program's file and parent process.
+  match:
+    type: net.beacon
+    drift: net.beacon
+    where:
+      - {field: uncommon_external, op: equals, value: false}
+
+- id: NET-031
+  title: Beaconing to an outside address on an unusual port
+  severity: high
+  mitre: [T1071, T1571, T1573]
+  description: >
+    A program connects at a steady pace to an address outside your networks on a port that is not 80, 443 or 53.
+    Regular timing plus an unusual destination is the signature of command-and-control traffic.
+  remediation: >
+    Treat as suspected malware. Identify the process, preserve evidence, block the destination at the firewall, then
+    investigate how it got there.
+  match:
+    type: net.beacon
+    drift: net.beacon
+    where:
+      - {field: uncommon_external, op: equals, value: true}
+
+- id: NET-032
+  title: Outbound connection to a country never seen before
+  severity: low
+  mitre: [T1571]
+  description: >
+    This machine connected to an address in a country that none of its earlier connections (learned in the baseline)
+    went to. Updates and cloud services change countries now and then; malware infrastructure often sits where
+    legitimate services do not.
+  remediation: Check which program opened the connection and whether it is expected. Accept the finding if it is a normal service that moved.
+  match:
+    type: socket.inet
+    drift: net.country
+    where:
+      - {field: remote_cc, op: exists, value: true}
+
+- id: NET-033
+  title: Outbound traffic far above this interface's normal
+  severity: medium
+  mitre: [T1041, T1048]
+  description: >
+    The interface is sending much more data than usual for several minutes in a row (see the rates in the
+    evidence). It can be a legitimate backup or deployment; it can also be data leaving the machine, or the machine
+    taking part in an attack.
+  remediation: >
+    Find the process that sends (see the network findings of the same time) and check whether anything was
+    scheduled. Unexplained sustained uploads deserve a look at the destination.
+  match:
+    type: net.traffic_spike
+    tags_any: [traffic_spike]

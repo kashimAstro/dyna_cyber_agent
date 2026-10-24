@@ -1,0 +1,4 @@
+# ~audit-ro/.ssh/authorized_keys   (on a MONITORED machine)
+# The key can only start the gate (which accepts read-only requests): no shell, no forwarding, no tty.
+# Replace the key with the agent's public key (ssh-keygen -y -f /etc/dyna_cyber_agent/keys/<target>).
+command="sudo -n /usr/local/bin/dyna_cyber_agent-gate",restrict ssh-ed25519 AAAA...replace-with-the-agent-public-key... dyna_cyber_agent@monitor

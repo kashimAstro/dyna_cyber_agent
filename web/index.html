@@ -1,0 +1,810 @@
+<!doctype html>
+<html lang="@LANG@">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>dyna_cyber_agent - console</title>
+<style>
+:root{--bg:#f3f5f9;--panel:#fff;--panel2:#f8fafc;--line:#e3e8ef;--txt:#111827;--mut:#667085;--acc:#4f46e5;--accfg:#fff;
+--s4:#b42318;--s3:#c4320a;--s2:#b54708;--s1:#175cd3;--s0:#475467;--ok:#067647;--shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08)}
+:root[data-theme=dark]{--bg:#0b1020;--panel:#141b2e;--panel2:#10172a;--line:#26304a;--txt:#e6eaf3;--mut:#9aa6c0;--acc:#8b87ff;--accfg:#0b1020;
+--s4:#ff7a70;--s3:#ff9b5e;--s2:#f5b04a;--s1:#6aa8ff;--s0:#9aa6c0;--ok:#4ade80;--shadow:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0b1020;--panel:#141b2e;--panel2:#10172a;--line:#26304a;--txt:#e6eaf3;--mut:#9aa6c0;--acc:#8b87ff;--accfg:#0b1020;
+--s4:#ff7a70;--s3:#ff9b5e;--s2:#f5b04a;--s1:#6aa8ff;--s0:#9aa6c0;--ok:#4ade80;--shadow:none}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+button,input,select,textarea{font:inherit;color:inherit}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px}
+header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+.bar{max-width:1240px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px}
+.brand{font-weight:800;letter-spacing:.2px;white-space:nowrap}
+.brand small{display:block;font-weight:500;color:var(--mut);font-size:11px;letter-spacing:0}
+nav{display:flex;gap:4px;overflow-x:auto;flex:1;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{background:none;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;color:var(--mut);font-weight:600;white-space:nowrap}
+nav button[aria-current=true]{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
+nav button:hover{color:var(--txt)}
+.iconbtn{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;color:var(--mut)}
+main{max-width:1240px;margin:0 auto;padding:18px 16px 60px}
+h2{font-size:18px;margin:0 0 12px}
+h3{font-size:13px;margin:0 0 10px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr))}
+.two{grid-template-columns:repeat(auto-fit,minmax(min(340px,100%),1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);min-width:0}
+.kpi .n{font-size:30px;font-weight:800;line-height:1.1}
+.kpi .l{color:var(--mut);font-size:12.5px;margin-top:2px}
+.badge{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#fff;white-space:nowrap}
+.b4{background:var(--s4)}.b3{background:var(--s3)}.b2{background:var(--s2)}.b1{background:var(--s1)}.b0{background:var(--s0)}
+:root[data-theme=dark] .badge{color:#0b1020}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .badge{color:#0b1020}}
+.chip{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;background:var(--panel2);border:1px solid var(--line);color:var(--mut);margin:2px 4px 2px 0}
+.chip.kev{color:var(--s4);border-color:var(--s4);font-weight:700}
+.chip.new{color:var(--ok);border-color:var(--ok)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+.mut{color:var(--mut)}
+.sev{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--panel2);border:1px solid var(--line)}
+.sev i{display:block;height:100%}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--mut)}
+.legend b{color:var(--txt)}
+.list{display:flex;flex-direction:column}
+.item{display:flex;gap:10px;align-items:flex-start;padding:10px 4px;border-top:1px solid var(--line);cursor:pointer;border-radius:6px}
+.item:first-child{border-top:0}
+.item:hover{background:var(--panel2)}
+.item .t{font-weight:600;overflow-wrap:anywhere}
+.item .s{color:var(--mut);font-size:12.5px;overflow-wrap:anywhere}
+.item input[type=checkbox]{margin-top:5px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.filters input,.filters select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+.filters input[type=search]{flex:1;min-width:180px}
+.btn{background:var(--acc);color:var(--accfg);border:0;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer}
+.btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+textarea{width:100%;min-height:84px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--mut);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 8px;border-top:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.scroll{overflow-x:auto}
+.progress{height:8px;border-radius:6px;background:var(--panel2);border:1px solid var(--line);overflow:hidden;margin-top:6px}
+.progress i{display:block;height:100%;background:var(--acc)}
+.drawer{position:fixed;inset:0;z-index:40;display:none}
+.drawer.open{display:block}
+.drawer .back{position:absolute;inset:0;background:rgba(2,6,23,.5)}
+.drawer .panel{position:absolute;top:0;right:0;bottom:0;width:min(680px,100%);background:var(--bg);overflow-y:auto;padding:16px;border-left:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:13px}
+.kv dt{color:var(--mut)}.kv dd{margin:0;overflow-wrap:anywhere}
+.ai{background:color-mix(in srgb,var(--acc) 9%,var(--panel));border:1px solid color-mix(in srgb,var(--acc) 35%,var(--line));border-radius:10px;padding:12px;margin-top:12px}
+.ai ol,.ai ul{margin:6px 0 0;padding-left:20px}
+.warn{color:var(--s3)}
+.err{background:color-mix(in srgb,var(--s4) 12%,var(--panel));border:1px solid var(--s4);border-radius:8px;padding:10px;margin:10px 0}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:r 1s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes r{to{transform:rotate(360deg)}}
+.mapwrap{position:relative;border-radius:12px;overflow:hidden;border:1px solid var(--line);background:#0a1020}
+.mapwrap canvas{display:block;width:100%;aspect-ratio:2/1;min-height:260px;touch-action:none;cursor:grab}
+.mapwrap canvas.drag{cursor:grabbing}
+.tip{position:absolute;pointer-events:none;background:rgba(10,16,32,.96);color:#e6eaf3;border:1px solid #2a3a5c;border-radius:8px;padding:8px 10px;font-size:12.5px;max-width:270px;display:none;z-index:3}
+.mapbtns{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.mapbtns button{width:34px;height:34px;border-radius:8px;border:1px solid #2a3a5c;background:rgba(10,16,32,.85);color:#e6eaf3;font-size:18px;cursor:pointer}
+.maplegend{position:absolute;left:10px;bottom:8px;display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:#9aa6c0;background:rgba(10,16,32,.75);padding:4px 8px;border-radius:8px}
+.maplegend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.bar2{height:8px;border-radius:5px;background:var(--panel2);overflow:hidden;min-width:60px}
+.bar2 i{display:block;height:100%;background:var(--s3)}
+iframe.pv{width:100%;height:70vh;border:1px solid var(--line);border-radius:10px;background:#fff}
+#login{max-width:420px;margin:12vh auto;padding:0 16px}
+.hide{display:none!important}
+@media (max-width:640px){.bar{flex-wrap:wrap}.brand small{display:none}.kpi .n{font-size:26px}}
+</style>
+</head>
+<body>
+<div id="login" class="hide">
+  <div class="card">
+    <h2>dyna_cyber_agent</h2>
+    <p class="mut" id="loginhelp"></p>
+    <form id="loginform"><input id="tokeninput" type="password" autocomplete="off" placeholder="token" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--panel)"><div id="loginerr" class="err hide"></div><p><button class="btn" type="submit" id="loginbtn"></button></p></form>
+  </div>
+</div>
+
+<div id="app" class="hide">
+<header><div class="bar">
+  <div class="brand">dyna_cyber_agent<small id="hostline"></small></div>
+  <nav id="nav"></nav>
+  <button class="iconbtn" id="theme">&#9680;</button>
+  <button class="iconbtn" id="logout"></button>
+</div></header>
+<main id="view"></main>
+</div>
+
+<div class="drawer" id="drawer"><div class="back" id="drawerback"></div><div class="panel" id="drawerpanel"></div></div>
+
+<script>
+"use strict";
+/* The page is written in Italian; with <html lang="en"> (set by the server from the agent's `language`) every UI string goes through this table. */
+const LANG=document.documentElement.lang==="en"?"en":"it";
+const EN={
+  "Panoramica":"Overview",
+  "Vulnerabilita'":"Vulnerabilities",
+  "Mappa":"Map",
+  "Analisi AI":"AI analysis",
+  "Stato":"Status",
+  " min fa":" min ago",
+  " h fa":" h ago",
+  " g fa":" d ago",
+  "mai":"never",
+  "ora":"now",
+  "Token errato o scaduto.":"Wrong or expired token.",
+  "risposta non valida":"invalid response",
+  "tempo scaduto: l'analisi non e' ancora finita (controlla il log dell'agente)":"timed out: the analysis is not finished yet (check the agent log)",
+  "Impossibile contattare l'agente: ":"Cannot reach the agent: ",
+  "Caricamento...":"Loading...",
+  "Errore: ":"Error: ",
+  "finding di sicurezza aperti":"open security findings",
+  "critici + alti":"critical + high",
+  "nuovi nelle ultime 24 h":"new in the last 24 h",
+  "risolti nelle ultime 24 h":"resolved in the last 24 h",
+  "vulnerabilita' aperte":"open vulnerabilities",
+  "attivamente sfruttate (KEV)":"actively exploited (KEV)",
+  "Apprendimento in corso: ":"Learning in progress: ",
+  "nei target ":"on targets ",
+  " le regole di novita' (processi, porte, utenti, cron) sono mute; log, file e vulnerabilita' sono attivi.":" the novelty rules (processes, ports, users, cron) are muted; log, file and vulnerability rules are active.",
+  "Finding aperti per gravita'":"Open findings by severity",
+  "Vulnerabilita' per CVSS (":"Vulnerabilities by CVSS (",
+  " pacchetti, ":" packages, ",
+  " con correzione)":" with a fix)",
+  "Da guardare per primi":"Look at these first",
+  "Nessun finding di sicurezza aperto.":"No open security findings.",
+  "Target e baseline":"Targets and baseline",
+  "apprendimento":"learning",
+  "in vigore":"enforced",
+  " identita'":" identities",
+  "fine prevista: ":"expected end: ",
+  "Modello linguistico":"Language model",
+  "Attivo - analisi e report AI disponibili.":"Active - AI analysis and reports available.",
+  "Non configurato (llm.enabled: false): analisi e sintesi AI non disponibili.":"Not configured (llm.enabled: false): AI analysis and synthesis unavailable.",
+  "Le analisi mirate si lanciano dalla scheda di un finding o dalla scheda \"Analisi AI\".":"Targeted analyses are started from a finding's panel or from the \"AI analysis\" tab.",
+  "Analizza con AI i selezionati (":"Analyse selected with AI (",
+  "tutti i target":"all targets",
+  "Cerca (regola, titolo, soggetto, tag, MITRE...)":"Search (rule, title, subject, tag, MITRE...)",
+  "ogni gravita'":"any severity",
+  "da basso":"from low",
+  "da medio":"from medium",
+  "da alto":"from high",
+  "solo critici":"critical only",
+  "aperti":"open",
+  "risolti":"resolved",
+  "accettati":"accepted",
+  "tutti":"all",
+  "ogni collector":"any collector",
+  "senza CVE":"without CVE",
+  "con CVE":"with CVE",
+  " risultati":" results",
+  " (primi ":" (first ",
+  "Nessun risultato.":"No results.",
+  "Vulnerabilita' del software installato":"Vulnerabilities in installed software",
+  "aperte":"open",
+  "sfruttate (KEV)":"exploited (KEV)",
+  "CVSS critico":"CVSS critical",
+  "CVSS alto":"CVSS high",
+  "con correzione":"with a fix",
+  "Cerca CVE, pacchetto, descrizione":"Search CVE, package, description",
+  "tutte":"all",
+  "solo sfruttate":"exploited only",
+  "solo nuove":"new only",
+  ", le piu' gravi)":", the most severe)",
+  "Correzione":"Fix",
+  "da verificare":"to verify",
+  "nessuna nota":"none known",
+  "Nessuna vulnerabilita' con questi filtri.":"No vulnerabilities match these filters.",
+  "Chiudi":"Close",
+  "Valutazione AI":"AI assessment",
+  "confidenza ":"confidence ",
+  "Il testo osservato contiene un probabile tentativo di manipolare l'analisi AI: consideralo un indicatore di attacco.":"The observed text contains a probable attempt to manipulate the AI analysis: treat it as an attack indicator.",
+  "Azioni consigliate":"Recommended actions",
+  "Verifiche aggiuntive":"Additional checks",
+  "Soggetto":"Subject",
+  "Visto":"Seen",
+  " volte, dal ":" times, from ",
+  " al ":" to ",
+  "Gravita'":"Severity",
+  "Come rimediare":"How to fix",
+  "Non presente nella baseline":"Not in baseline",
+  "Evidenze":"Evidence",
+  "Analisi mirata con l'AI":"Targeted AI analysis",
+  "Domanda facoltativa, es. \"Questo processo e' compatibile con un'attivita' di backup?\"":"Optional question, e.g. \"Is this process consistent with a backup job?\"",
+  "Analizza":"Analyse",
+  "Analisi su ":"Analysis of ",
+  "Analisi in corso: il modello locale puo' impiegare da qualche decina di secondi a diversi minuti...":"Analysis in progress: the local model may take from a few tens of seconds to several minutes...",
+  "Analisi mirata di ":"Targeted analysis of ",
+  " finding":" findings",
+  "Domanda facoltativa per l'analista AI":"Optional question for the AI analyst",
+  "Avvia":"Start",
+  "Il modello non e' configurato (llm.enabled: false).":"The model is not configured (llm.enabled: false).",
+  "Es. \"Ci sono segni di movimento laterale?\" - \"Riassumi cosa e' cambiato su web01 nelle porte esposte\" - \"Quali di questi finding sono probabilmente falsi positivi?\"":"E.g. \"Are there signs of lateral movement?\" - \"Summarise what changed on web01 in the exposed ports\" - \"Which of these findings are probably false positives?\"",
+  "Scegli quali finding aperti sottoporre al modello (fino a 24, i piu' gravi per primi) e, se vuoi, fai una domanda. La risposta compare qui sotto e le valutazioni vengono salvate con i finding.":"Choose which open findings to submit to the model (up to 24, most severe first) and, if you like, ask a question. The answer appears below and the assessments are saved with the findings.",
+  "Avvia analisi":"Start analysis",
+  "Digest (periodo)":"Digest (period)",
+  "Avviso (finding sopra la soglia)":"Alert (findings above the threshold)",
+  "ultime 24 ore":"last 24 hours",
+  "ultimi 3 giorni":"last 3 days",
+  "ultimi 7 giorni":"last 7 days",
+  "ultimi 30 giorni":"last 30 days",
+  "Generazione con sintesi AI in corso...":"Generating with AI synthesis...",
+  "Generazione...":"Generating...",
+  "Scarica HTML":"Download HTML",
+  "Scarica TXT":"Download TXT",
+  "Anteprima: e' la stessa mail che l'agente invierebbe. Non e' stato inviato nulla.":"Preview: this is the same mail the agent would send. Nothing has been sent.",
+  " con sintesi AI (usa il modello)":" with AI synthesis (uses the model)",
+  "Genera anteprima":"Generate preview",
+  "inviata":"sent",
+  "fallita":"failed",
+  "Mail inviate":"Sent mail",
+  "Quando":"When",
+  "Tipo":"Type",
+  "Esito":"Result",
+  "Oggetto":"Subject",
+  "Nessuna mail ancora.":"No mail yet.",
+  "Stato dei collector (ultime 24 h)":"Collector status (last 24 h)",
+  "Ultimo successo":"Last success",
+  "Riusciti":"Succeeded",
+  "Falliti":"Failed",
+  "Ultimo errore":"Last error",
+  "FERMO - ":"STALLED - ",
+  "Posizione":"Location",
+  "rete locale / indirizzo non pubblico":"local network / non-public address",
+  " (approssimata)":" (approximate)",
+  "sconosciuta (database geografico assente o indirizzo non presente)":"unknown (geo database missing or address not present)",
+  "Tentativi":"Attempts",
+  " in totale":" in total",
+  " falliti, ":" failed, ",
+  " riusciti":" succeeded",
+  "Scansioni":"Scans",
+  " (protocollo SSH anomalo)":" (abnormal SSH protocol)",
+  " richieste d'attacco, ":" attack requests, ",
+  " errori 4xx":" 4xx errors",
+  "Target colpiti":"Targets hit",
+  "Primo / ultimo":"First / last",
+  "Utenti provati":"Users tried",
+  "Questo indirizzo ha ottenuto un accesso dopo ripetuti fallimenti: verifica subito la sessione e le credenziali coinvolte.":"This address gained access after repeated failures: check the session and the credentials involved right away.",
+  " indirizzi, ":" addresses, ",
+  " tentativi":" attempts",
+  " SSH falliti, ":" SSH failed, ",
+  " scan, ":" scans, ",
+  " web":" web",
+  " indirizzi - ":" addresses - ",
+  "Ingrandisci":"Zoom in",
+  "Riduci":"Zoom out",
+  "Vista intera":"Full view",
+  "attivo nell'ultima ora":"active in the last hour",
+  "Mappa dei tentativi di accesso":"Map of access attempts",
+  "Database di geolocalizzazione non installato: gli indirizzi sono elencati ma non posizionati. Esegui sulla macchina dell'agente: ":"Geolocation database not installed: addresses are listed but not placed. Run on the agent machine: ",
+  "indirizzi distinti":"distinct addresses",
+  "tentativi registrati":"recorded attempts",
+  "posizionati sulla mappa":"placed on the map",
+  "paesi (primi 15)":"countries (top 15)",
+  "accessi dopo fallimenti":"logins after failures",
+  "da sempre":"all time",
+  "ogni livello":"any level",
+  "Posizioni: IP geolocation by DB-IP (db-ip.com), CC BY 4.0, calcolate localmente: nessun indirizzo viene inviato a servizi esterni. Precisione a livello di citta', a volte solo di paese. Mappa: Natural Earth (pubblico dominio).":"Locations: IP geolocation by DB-IP (db-ip.com), CC BY 4.0, computed locally: no address is sent to external services. City-level accuracy, sometimes country only. Map: Natural Earth (public domain).",
+  "Mappa: Natural Earth (pubblico dominio).":"Map: Natural Earth (public domain).",
+  "Paesi piu' attivi":"Most active countries",
+  " tent. / ":" att. / ",
+  "Nessun indirizzo posizionato.":"No address placed.",
+  "Senza posizione (":"Unplaced (",
+  "Reti private/locali e indirizzi assenti dal database.":"Private/local networks and addresses missing from the database.",
+  " tent.":" att.",
+  "Indirizzi (":"Addresses (",
+  ", primi 150":", first 150",
+  "Rischio":"Risk",
+  "SSH ko/ok":"SSH fail/ok",
+  "Ultimo":"Last",
+  "rete locale":"local network",
+  "basso":"low",
+  "medio":"medium",
+  "alto":"high",
+  "critico":"critical",
+  "sfruttata":"exploited",
+  "nuova":"new",
+  "n/d":"n/a",
+  "Incidenti":"Incidents",
+  "incidenti aperti":"open incidents",
+  "Nessun incidente: i finding aperti non sono collegati tra loro.":"No incidents: the open findings are not linked to each other.",
+  "Il rilevamento degli incidenti e' disattivato (analysis.incidents: false).":"Incident detection is off (analysis.incidents: false).",
+  "Incidente #":"Incident #",
+  "In comune":"Shared",
+  "Cronologia":"Timeline",
+  "Analizza l'incidente con l'AI":"Analyse the incident with AI",
+  "Fa parte dell'incidente":"Part of incident",
+  "risolto":"resolved",
+  "Probabilmente spiegato da un aggiornamento: ":"Probably explained by a package update: ",
+  "Priorita'":"Priority",
+  "Raggiungibilita'":"Reach",
+  "solo in ascolto in rete":"listening on the network only",
+  "in ascolto: ":"listening: ",
+  "in ascolto (locale)":"local listener",
+  "in esecuzione":"running",
+  "sconosciuta":"unknown",
+  "riavvio in attesa":"reboot pending",
+  "Inserisci il token della console. Si trova nel file indicato all'avvio dell'agente (":"Enter the console token. It is in the file shown when the agent starts (",
+  " nella ":" in ",
+  "Entra":"Sign in",
+  "Esci":"Log out",
+  "Tema chiaro/scuro":"Light/dark theme"
+};
+const T=s=>LANG==="en"&&EN[s]||s;
+const SEV=["info","low","medium","high","critical"];
+const SEVIT={info:"info",low:T("basso"),medium:T("medio"),high:T("alto"),critical:T("critico")};
+const SEVCOL={4:"var(--s4)",3:"var(--s3)",2:"var(--s2)",1:"var(--s1)",0:"var(--s0)"};
+const TABS=[["overview",T("Panoramica")],["incidents",T("Incidenti")],["findings","Finding"],["vulns",T("Vulnerabilita'")],["map",T("Mappa")],["ai",T("Analisi AI")],["report","Report"],["mail","Mail"],["status",T("Stato")]];
+let token=null,tab=(TABS.map(t=>t[0]).includes(location.hash.slice(1))?location.hash.slice(1):"overview"),overview=null,timer=null,selected=new Set();
+
+function h(tag,attrs,...kids){
+  const e=document.createElement(tag);
+  if(attrs)for(const[k,v]of Object.entries(attrs)){
+    if(v==null||v===false)continue;
+    if(k==="class")e.className=v;
+    else if(k.startsWith("on"))e.addEventListener(k.slice(2),v);
+    else if(k==="checked"||k==="value"||k==="disabled")e[k]=v;
+    else e.setAttribute(k,v===true?"":v);
+  }
+  for(const c of kids.flat(Infinity)){if(c==null||c===false)continue;e.append(c.nodeType?c:document.createTextNode(String(c)));}
+  return e;
+}
+const $=id=>document.getElementById(id);
+function ts(t){return t?new Date(t*1000).toLocaleString(LANG==="en"?"en-GB":"it-IT",{dateStyle:"short",timeStyle:"short"}):T("mai");}
+function ago(t){if(!t)return T("mai");const s=Math.max(0,Date.now()/1000-t);if(s<90)return T("ora");if(s<5400)return Math.round(s/60)+T(" min fa");if(s<129600)return Math.round(s/3600)+T(" h fa");return Math.round(s/86400)+T(" g fa");}
+function badge(sev){const i=SEV.indexOf(sev);return h("span",{class:"badge b"+(i<0?0:i)},SEVIT[sev]||sev);}
+function chip(t,c){return h("span",{class:"chip "+(c||"")},t);}
+
+async function api(path,opts){
+  const r=await fetch(path,{method:opts&&opts.method||"GET",headers:{"Authorization":"Bearer "+token,"Content-Type":"application/json"},body:opts&&opts.body?JSON.stringify(opts.body):undefined});
+  if(r.status===401){logout(T("Token errato o scaduto."));throw new Error("401");}
+  const j=await r.json().catch(()=>({error:T("risposta non valida")}));
+  if(!r.ok)throw new Error(j.error||("HTTP "+r.status));
+  return j;
+}
+async function pollJob(id,onTick){
+  for(let i=0;i<400;i++){
+    const j=await api("/api/jobs/"+encodeURIComponent(id));
+    if(j.state!=="running")return j;
+    if(onTick)onTick(i);
+    await new Promise(r=>setTimeout(r,i<5?1000:3000));
+  }
+  throw new Error(T("tempo scaduto: l'analisi non e' ancora finita (controlla il log dell'agente)"));
+}
+
+function logout(msg){
+  try{sessionStorage.removeItem("tk");}catch(e){}
+  token=null;clearInterval(timer);
+  $("app").classList.add("hide");$("login").classList.remove("hide");
+  const e=$("loginerr");if(msg){e.textContent=msg;e.classList.remove("hide");}else e.classList.add("hide");
+}
+async function enter(t){
+  token=t;
+  try{overview=await api("/api/overview");}catch(e){if(e.message!=="401")logout(T("Impossibile contattare l'agente: ")+e.message);return;}
+  try{sessionStorage.setItem("tk",t);}catch(e){}
+  $("login").classList.add("hide");$("app").classList.remove("hide");
+  $("hostline").textContent=overview.host+" - v"+overview.version;
+  renderNav();show(tab);
+  clearInterval(timer);
+  timer=setInterval(()=>{if(!document.hidden&&tab==="overview")show("overview",true);},30000);
+}
+function renderNav(){
+  const n=$("nav");n.replaceChildren(...TABS.map(([k,l])=>h("button",{"aria-current":k===tab?"true":null,onclick:()=>show(k)},l)));
+}
+async function show(k,quiet){
+  tab=k;renderNav();
+  const v=$("view");
+  if(!quiet)v.replaceChildren(h("p",{class:"mut"},h("span",{class:"spin"}),T("Caricamento...")));
+  try{
+    const content=await ({overview:vOverview,incidents:vIncidents,findings:vFindings,vulns:vVulns,map:vMap,ai:vAi,report:vReport,mail:vMail,status:vStatus}[k])();
+    v.replaceChildren(content);
+  }catch(e){if(e.message!=="401")v.replaceChildren(h("div",{class:"err"},T("Errore: ")+e.message));}
+}
+
+/* ---------- panoramica ---------- */
+function sevBar(counts){
+  const order=["critical","high","medium","low","info"];const tot=order.reduce((a,k)=>a+(counts[k]||0),0)||1;
+  return h("div",null,
+    h("div",{class:"sev"},order.map(k=>counts[k]?h("i",{style:"width:"+(100*counts[k]/tot)+"%;background:"+SEVCOL[SEV.indexOf(k)],title:SEVIT[k]+": "+counts[k]}):null)),
+    h("div",{class:"legend"},order.map(k=>h("span",null,h("span",{class:"badge b"+SEV.indexOf(k),style:"padding:0 6px"},SEVIT[k]),h("b",null," "+(counts[k]||0))))));
+}
+function kpi(n,l,sev){return h("div",{class:"card kpi"},h("div",{class:"n",style:sev!=null?"color:"+SEVCOL[sev]:null},n),h("div",{class:"l"},l));}
+function findingRow(f,opt){
+  opt=opt||{};
+  return h("div",{class:"item",onclick:()=>openFinding(f.id)},
+    opt.select?h("input",{type:"checkbox",checked:selected.has(f.id),onclick:e=>{e.stopPropagation();e.target.checked?selected.add(f.id):selected.delete(f.id);updSel();}}):null,
+    badge(f.effective),
+    h("div",{class:"sp"},
+      h("div",{class:"t"},h("span",{class:"mut"},"#"+f.id+" "+f.rule_id+"  "),f.title),
+      h("div",{class:"s"},f.target+" - "+f.subject),
+      h("div",null,f.assessed?chip("AI: "+f.verdict):null,f.tags.includes("kev")?chip(T("sfruttata"),"kev"):null,f.tags.includes("recent")?chip(T("nuova"),"new"):null,f.mitre.map(m=>chip(m)))),
+    h("div",{class:"s",style:"text-align:right;white-space:nowrap"},ago(f.last_seen)));
+}
+async function vOverview(){
+  overview=await api("/api/overview");const o=overview;
+  const learning=o.targets.filter(t=>t.baseline&&t.baseline.state==="learning");
+  return h("div",{class:"grid"},
+    h("div",{class:"grid kpis"},
+      kpi(o.open.security,T("finding di sicurezza aperti"),o.open.by_severity.critical?4:o.open.by_severity.high?3:null),
+      kpi(o.open.by_severity.critical+o.open.by_severity.high,T("critici + alti"),o.open.by_severity.critical+o.open.by_severity.high?3:null),
+      kpi(o.new_24h,T("nuovi nelle ultime 24 h")),
+      kpi(o.resolved_24h==null?"-":o.resolved_24h,T("risolti nelle ultime 24 h")),
+      kpi(o.incidents?o.incidents.open:0,T("incidenti aperti"),o.incidents&&o.incidents.high_or_critical?4:null),
+      kpi(o.vulns.total,T("vulnerabilita' aperte")),
+      kpi(o.vulns.kev,T("attivamente sfruttate (KEV)"),o.vulns.kev?4:null)),
+    learning.length?h("div",{class:"card"},h("b",null,T("Apprendimento in corso: ")),T("nei target "),learning.map(t=>t.name).join(", "),T(" le regole di novita' (processi, porte, utenti, cron) sono mute; log, file e vulnerabilita' sono attivi.")) :null,
+    h("div",{class:"grid two"},
+      h("div",{class:"card"},h("h3",null,T("Finding aperti per gravita'")),sevBar(o.open.by_severity)),
+      h("div",{class:"card"},h("h3",null,T("Vulnerabilita' per CVSS (")+o.vulns.packages+T(" pacchetti, ")+o.vulns.with_fix+T(" con correzione)")),sevBar(o.vulns.by_band))),
+    h("div",{class:"card"},h("h3",null,T("Da guardare per primi")),
+      o.top.length?h("div",{class:"list"},o.top.map(f=>findingRow(f))):h("p",{class:"mut"},T("Nessun finding di sicurezza aperto."))),
+    h("div",{class:"grid two"},
+      h("div",{class:"card"},h("h3",null,T("Target e baseline")),h("div",{class:"list"},o.targets.map(t=>{
+        const b=t.baseline;let pct=0;
+        if(b&&b.state==="learning")pct=Math.min(100,100*(Date.now()/1000-b.started_at)/Math.max(1,b.ends_at-b.started_at));
+        return h("div",{style:"padding:8px 0;border-top:1px solid var(--line)"},
+          h("div",{class:"row"},h("b",null,t.name),chip(t.transport),b?chip(b.state==="learning"?T("apprendimento"):T("in vigore"),b.state==="learning"?"":"new"):null,h("span",{class:"sp"}),h("span",{class:"mut"},b&&b.identities!=null?b.identities+T(" identita'"):"")),
+          b&&b.state==="learning"?h("div",null,h("div",{class:"progress"},h("i",{style:"width:"+pct+"%"})),h("div",{class:"s mut"},T("fine prevista: ")+ts(b.ends_at))):null);}))),
+      h("div",{class:"card"},h("h3",null,T("Modello linguistico")),
+        h("p",null,o.llm.usable?h("span",{style:"color:var(--ok)"},T("Attivo - analisi e report AI disponibili.")):h("span",{class:"mut"},T("Non configurato (llm.enabled: false): analisi e sintesi AI non disponibili."))),
+        h("p",{class:"mut"},T("Le analisi mirate si lanciano dalla scheda di un finding o dalla scheda \"Analisi AI\".")))));
+}
+
+/* ---------- finding ---------- */
+let fq={q:"",severity:"",status:"open",target:"",collector:"",vulns:"no"};
+function updSel(){const b=$("selbtn");if(b){b.disabled=!selected.size;b.textContent=T("Analizza con AI i selezionati (")+selected.size+")";}}
+async function vFindings(){
+  const p=new URLSearchParams();for(const[k,v]of Object.entries(fq))if(v)p.set(k,v);p.set("limit","300");
+  const d=await api("/api/findings?"+p);
+  const apply=()=>show("findings",true);
+  const inp=(k,ph)=>h("input",{type:"search",placeholder:ph,value:fq[k],onchange:e=>{fq[k]=e.target.value;apply();}});
+  const sel=(k,opts)=>h("select",{onchange:e=>{fq[k]=e.target.value;apply();}},opts.map(([v,l])=>h("option",{value:v,selected:fq[k]===v},l)));
+  const targets=[["",T("tutti i target")],...overview.targets.map(t=>[t.name,t.name])];
+  return h("div",null,h("h2",null,"Finding"),
+    h("div",{class:"filters"},inp("q",T("Cerca (regola, titolo, soggetto, tag, MITRE...)")),
+      sel("severity",[["",T("ogni gravita'")],["low",T("da basso")],["medium",T("da medio")],["high",T("da alto")],["critical",T("solo critici")]]),
+      sel("status",[["open",T("aperti")],["resolved",T("risolti")],["accepted",T("accettati")],["all",T("tutti")]]),
+      sel("target",targets),
+      sel("collector",[["",T("ogni collector")],...["processes","network","users","logs","persistence","system","files","integrity","packages","vulns"].map(c=>[c,c])]),
+      sel("vulns",[["no",T("senza CVE")],["",T("con CVE")]])),
+    h("div",{class:"row",style:"margin-bottom:10px"},h("span",{class:"mut"},d.total+T(" risultati")+(d.total>d.items.length?T(" (primi ")+d.items.length+")":"")),h("span",{class:"sp"}),
+      overview.llm.usable?h("button",{class:"btn sec",id:"selbtn",disabled:!selected.size,onclick:()=>analyzeDialog([...selected])},T("Analizza con AI i selezionati (")+selected.size+")"):null),
+    h("div",{class:"card"},d.items.length?h("div",{class:"list"},d.items.map(f=>findingRow(f,{select:overview.llm.usable}))):h("p",{class:"mut"},T("Nessun risultato."))));
+}
+
+/* ---------- vulnerabilita' ---------- */
+let vq={q:"",only:"",target:""};
+async function vVulns(){
+  const p=new URLSearchParams();for(const[k,v]of Object.entries(vq))if(v)p.set(k,v);p.set("limit","600");
+  const d=await api("/api/vulns?"+p);const o=overview;
+  const apply=()=>show("vulns",true);
+  const groups=new Map();
+  for(const v of d.items){const k=v.target+" / "+v.package+" "+v.installed;if(!groups.has(k))groups.set(k,[]);groups.get(k).push(v);}
+  return h("div",null,h("h2",null,T("Vulnerabilita' del software installato")),
+    h("div",{class:"grid kpis",style:"margin-bottom:14px"},kpi(o.vulns.total,T("aperte")),kpi(o.vulns.kev,T("sfruttate (KEV)"),o.vulns.kev?4:null),kpi(o.vulns.by_band.critical,T("CVSS critico"),o.vulns.by_band.critical?4:null),kpi(o.vulns.by_band.high,T("CVSS alto"),3),kpi(o.vulns.with_fix,T("con correzione"))),
+    h("div",{class:"filters"},
+      h("input",{type:"search",placeholder:T("Cerca CVE, pacchetto, descrizione"),value:vq.q,onchange:e=>{vq.q=e.target.value;apply();}}),
+      h("select",{onchange:e=>{vq.only=e.target.value;apply();}},[["",T("tutte")],["kev",T("solo sfruttate")],["recent",T("solo nuove")],["fix",T("con correzione")],["exposed",T("solo in ascolto in rete")]].map(([v,l])=>h("option",{value:v,selected:vq.only===v},l))),
+      h("select",{onchange:e=>{vq.target=e.target.value;apply();}},[["",T("tutti i target")],...o.targets.map(t=>[t.name,t.name])].map(([v,l])=>h("option",{value:v,selected:vq.target===v},l)))),
+    h("div",{class:"mut",style:"margin-bottom:8px"},d.total+T(" risultati")+(d.total>d.items.length?T(" (primi ")+d.items.length+T(", le piu' gravi)"):"")),
+    h("div",{class:"card scroll"},d.items.length?[...groups].map(([k,list])=>h("div",{style:"margin-bottom:14px"},h("b",null,k),
+      h("table",null,h("thead",null,h("tr",null,[T("Priorita'"),"CVE","CVSS","EPSS",T("Raggiungibilita'"),T("Stato"),"CWE",T("Correzione")].map(x=>h("th",null,x)))),
+        h("tbody",null,list.map(v=>h("tr",{style:"cursor:pointer",onclick:()=>openFinding(v.id)},
+          h("td",null,v.priority==null?"-":h("b",{style:"color:"+(v.priority>=80?SEVCOL[4]:v.priority>=60?SEVCOL[3]:v.priority>=40?SEVCOL[2]:SEVCOL[1])},v.priority)),
+          h("td",{class:"mono"},v.cve),
+          h("td",null,v.cvss==null?T("n/d"):h("b",{style:"color:"+(v.cvss>=9?SEVCOL[4]:v.cvss>=7?SEVCOL[3]:v.cvss>=4?SEVCOL[2]:SEVCOL[1])},v.cvss.toFixed(1))),
+          h("td",null,v.epss==null?"-":(v.epss*100).toFixed(v.epss>=0.1?0:1)+"%"),
+          h("td",null,v.exposure==="listening"?chip(T("in ascolto: ")+(v.ports||[]).join(", "),"kev"):v.exposure==="listening_local"?chip(T("in ascolto (locale)")):v.exposure==="running"?chip(T("in esecuzione")):"-",v.reboot_pending?chip(T("riavvio in attesa")):null),
+          h("td",null,v.kev?chip(T("sfruttata"),"kev"):null,v.recent?chip(T("nuova"),"new"):null,v.low_confidence?chip(T("da verificare")):null),
+          h("td",null,v.cwes.map(c=>chip(c.id+(c.name?" "+c.name:"")))),
+          h("td",{class:"mono"},v.fixed||T("nessuna nota")))))))) :h("p",{class:"mut"},T("Nessuna vulnerabilita' con questi filtri."))));
+}
+
+/* ---------- dettaglio finding ---------- */
+function openDrawer(nodes){const p=$("drawerpanel");p.replaceChildren(h("div",{class:"row",style:"margin-bottom:10px"},h("span",{class:"sp"}),h("button",{class:"btn sec",onclick:closeDrawer},T("Chiudi"))),...nodes);$("drawer").classList.add("open");p.scrollTop=0;}
+function closeDrawer(){$("drawer").classList.remove("open");}
+function assessmentView(a){
+  return h("div",{class:"ai"},h("div",{class:"row"},h("b",null,T("Valutazione AI")),chip(a.verdict),badge(a.risk),h("span",{class:"mut"},T("confidenza ")+a.confidence+"%")),
+    a.flags&&a.flags.includes("prompt_injection_suspected")?h("div",{class:"err"},T("Il testo osservato contiene un probabile tentativo di manipolare l'analisi AI: consideralo un indicatore di attacco.")):null,
+    a.explanation?h("p",{style:"white-space:pre-line"},a.explanation):null,
+    a.recommended_actions&&a.recommended_actions.length?h("div",null,h("b",null,T("Azioni consigliate")),h("ol",null,a.recommended_actions.map(x=>h("li",null,x)))):null,
+    a.additional_checks&&a.additional_checks.length?h("div",{style:"margin-top:8px"},h("b",null,T("Verifiche aggiuntive")),h("ul",null,a.additional_checks.map(x=>h("li",null,x)))):null);
+}
+function flat(o,prefix,out){
+  out=out||[];
+  if(o==null)return out;
+  if(Array.isArray(o)){out.push([prefix,o.map(x=>typeof x==="object"?JSON.stringify(x):String(x)).join(", ")]);return out;}
+  if(typeof o==="object"){for(const[k,v]of Object.entries(o))flat(v,prefix?prefix+"."+k:k,out);return out;}
+  out.push([prefix,String(o)]);return out;
+}
+async function openFinding(id){
+  openDrawer([h("p",{class:"mut"},h("span",{class:"spin"}),T("Caricamento..."))]);
+  let f;try{f=await api("/api/findings/"+id);}catch(e){if(e.message!=="401")openDrawer([h("div",{class:"err"},e.message)]);return;}
+  const out=h("div",{id:"aiout"});
+  const nodes=[h("div",{class:"card"},
+    h("div",{class:"row"},badge(f.effective),h("b",null,"#"+f.id+" "+f.rule_id),f.status!=="open"?chip(f.status):null),
+    h("h2",{style:"margin:8px 0"},f.title),
+    h("dl",{class:"kv"},
+      h("dt",null,"Target"),h("dd",null,f.target+" ("+f.collector+")"),
+      h("dt",null,T("Soggetto")),h("dd",{class:"mono"},f.subject),
+      h("dt",null,T("Visto")),h("dd",null,f.occurrences+T(" volte, dal ")+ts(f.first_seen)+T(" al ")+ts(f.last_seen)),
+      f.severity!==f.effective?[h("dt",null,T("Gravita'")),h("dd",null,SEVIT[f.severity]+" -> "+SEVIT[f.effective]+" (AI)")]:null,
+      f.mitre_names.length?[h("dt",null,"MITRE ATT&CK"),h("dd",null,f.mitre_names.map(m=>chip(m.id+(m.name?" "+m.name:""))))]:null,
+      f.cwe.length?[h("dt",null,"CWE"),h("dd",null,f.cwe.map(c=>chip(c)))]:null,
+      f.tags.length?[h("dt",null,"Tag"),h("dd",null,f.tags.map(c=>chip(c)))]:null),
+    f.evidence&&f.evidence.explained_by?h("div",{class:"ai"},h("b",null,T("Probabilmente spiegato da un aggiornamento: ")),f.evidence.explained_by.package+" "+(f.evidence.explained_by.old_version?f.evidence.explained_by.old_version+" -> ":"")+f.evidence.explained_by.new_version+" ("+ts(f.evidence.explained_by.changed_at)+")"):null,
+    f.incident_id?h("p",null,h("button",{class:"btn sec",onclick:()=>openIncident(f.incident_id)},T("Fa parte dell'incidente")+" #"+f.incident_id)):null,
+    f.description?h("p",null,f.description):null,
+    f.remediation?h("div",null,h("b",null,T("Come rimediare")),h("p",{style:"margin-top:4px"},f.remediation)):null,
+    f.drift.length?h("div",null,h("b",null,T("Non presente nella baseline")),f.drift.map(d=>h("div",null,chip(d.facet),h("span",{class:"mono"},d.key)))):null),
+    h("div",{class:"card",style:"margin-top:12px"},h("h3",null,T("Evidenze")),h("dl",{class:"kv mono"},flat(f.evidence,"").slice(0,80).map(([k,v])=>[h("dt",null,k),h("dd",null,v.length>400?v.slice(0,400)+"...":v)]))),
+    f.assessment?assessmentView(f.assessment):null,
+    overview.llm.usable?h("div",{class:"card",style:"margin-top:12px"},h("h3",null,T("Analisi mirata con l'AI")),
+      h("textarea",{id:"q1",placeholder:T("Domanda facoltativa, es. \"Questo processo e' compatibile con un'attivita' di backup?\"")}),
+      h("p",null,h("button",{class:"btn",onclick:()=>runAnalysis({ids:[f.id],question:$("q1").value},out,()=>openFinding(f.id))},T("Analizza")))):null,
+    out];
+  openDrawer(nodes);
+}
+
+/* ---------- analisi AI ---------- */
+function analysisView(res){
+  return h("div",null,res.analyses.map(a=>h("div",{class:"ai"},h("div",{class:"row"},h("b",null,T("Analisi su ")+a.target),badge(a.overall_risk),h("span",{class:"mut"},a.model)),
+    h("p",{style:"white-space:pre-line"},a.summary),
+    a.correlations.map(c=>h("div",{class:"card",style:"margin-top:8px"},h("div",{class:"row"},badge(c.risk),h("b",null,c.title)),h("p",null,c.narrative),c.finding_ids.map(i=>chip("#"+i)),c.mitre.map(m=>chip(m)))),
+    a.assessments.map(x=>h("div",{style:"margin-top:10px;border-top:1px solid var(--line);padding-top:8px"},
+      h("div",{class:"row"},h("b",{style:"cursor:pointer",onclick:()=>openFinding(x.finding_id)},"#"+x.finding_id),chip(x.verdict),badge(x.risk),h("span",{class:"mut"},x.confidence+"%")),
+      h("p",{style:"white-space:pre-line;margin:6px 0"},x.explanation),
+      x.recommended_actions.length?h("ol",null,x.recommended_actions.map(r=>h("li",null,r))):null)))));
+}
+async function runAnalysis(body,out,done){
+  out.replaceChildren(h("p",null,h("span",{class:"spin"}),T("Analisi in corso: il modello locale puo' impiegare da qualche decina di secondi a diversi minuti...")));
+  try{
+    const j=await api("/api/analyze",{method:"POST",body});
+    const r=await pollJob(j.job);
+    if(r.state==="error")out.replaceChildren(h("div",{class:"err"},r.error));
+    else{out.replaceChildren(analysisView(r.result));if(done)setTimeout(()=>{},0);}
+  }catch(e){if(e.message!=="401")out.replaceChildren(h("div",{class:"err"},e.message));}
+}
+function analyzeDialog(ids){
+  const out=h("div");
+  openDrawer([h("div",{class:"card"},h("h2",null,T("Analisi mirata di ")+ids.length+T(" finding")),
+    h("textarea",{id:"q2",placeholder:T("Domanda facoltativa per l'analista AI")}),
+    h("p",null,h("button",{class:"btn",onclick:()=>runAnalysis({ids,question:$("q2").value},out)},T("Avvia")))),out]);
+}
+async function vAi(){
+  if(!overview.llm.usable)return h("div",{class:"card"},h("h2",null,T("Analisi AI")),h("p",{class:"mut"},T("Il modello non e' configurato (llm.enabled: false).")));
+  const out=h("div");
+  const target=h("select",null,[["",T("tutti i target")],...overview.targets.map(t=>[t.name,t.name])].map(([v,l])=>h("option",{value:v},l)));
+  const coll=h("select",null,[["",T("ogni collector")],...["processes","network","users","logs","persistence","system","files","integrity","vulns"].map(c=>[c,c])].map(([v,l])=>h("option",{value:v},l)));
+  const sev=h("select",null,[["low",T("da basso")],["medium",T("da medio")],["high",T("da alto")],["critical",T("solo critici")]].map(([v,l])=>h("option",{value:v,selected:v==="medium"},l)));
+  const q=h("textarea",{placeholder:T("Es. \"Ci sono segni di movimento laterale?\" - \"Riassumi cosa e' cambiato su web01 nelle porte esposte\" - \"Quali di questi finding sono probabilmente falsi positivi?\"")});
+  return h("div",null,h("h2",null,T("Analisi mirata con l'AI")),
+    h("div",{class:"card"},
+      h("p",{class:"mut"},T("Scegli quali finding aperti sottoporre al modello (fino a 24, i piu' gravi per primi) e, se vuoi, fai una domanda. La risposta compare qui sotto e le valutazioni vengono salvate con i finding.")),
+      h("div",{class:"filters"},target,coll,sev),q,
+      h("p",null,h("button",{class:"btn",onclick:()=>runAnalysis({filter:{target:target.value,collector:coll.value,min_severity:sev.value},question:q.value},out)},T("Avvia analisi")))),
+    out);
+}
+
+/* ---------- incidenti ---------- */
+function stageChain(i){return h("div",{class:"row",style:"gap:4px"},i.stage_names.map((n,k)=>[k?h("span",{class:"mut"},"\u2192"):null,chip(n)]));}
+async function openIncident(id){
+  openDrawer([h("p",{class:"mut"},h("span",{class:"spin"}),T("Caricamento..."))]);
+  let i;try{i=await api("/api/incidents/"+id);}catch(e){if(e.message!=="401")openDrawer([h("div",{class:"err"},e.message)]);return;}
+  const out=h("div");
+  openDrawer([h("div",{class:"card"},
+      h("div",{class:"row"},badge(i.severity),h("b",null,T("Incidente #")+i.id),i.status!=="open"?chip(T("risolto")):null),
+      h("h2",{style:"margin:8px 0"},i.title),
+      stageChain(i),
+      h("p",{class:"mut"},ts(i.first_ts)+" \u2192 "+ts(i.last_ts)+" - "+i.timeline.length+T(" finding")),
+      i.entities.length?h("div",null,h("b",null,T("In comune")+": "),i.entities.map(e=>chip(e.kind+" "+e.value))):null),
+    h("div",{class:"card",style:"margin-top:12px"},h("h3",null,T("Cronologia")),
+      h("div",{class:"list"},i.timeline.map(f=>h("div",{class:"item",onclick:()=>openFinding(f.id)},badge(f.effective),
+        h("div",{class:"sp"},h("div",{class:"t"},h("span",{class:"mut"},"#"+f.id+" "+f.rule_id+"  "),f.title),h("div",{class:"s"},f.target+" - "+f.subject)),
+        h("div",{class:"s",style:"text-align:right;white-space:nowrap"},ts(f.first_seen)))))),
+    overview.llm.usable?h("p",{style:"margin-top:12px"},h("button",{class:"btn",onclick:()=>runAnalysis({ids:i.finding_ids.slice(0,24)},out)},T("Analizza l'incidente con l'AI"))):null,
+    out]);
+}
+async function vIncidents(){
+  const d=await api("/api/incidents");
+  const open=d.items.filter(i=>i.status==="open"),done=d.items.filter(i=>i.status!=="open");
+  const card=i=>h("div",{class:"item",onclick:()=>openIncident(i.id)},badge(i.severity),
+    h("div",{class:"sp"},h("div",{class:"t"},h("span",{class:"mut"},"#"+i.id+"  "),i.title),
+      h("div",{class:"s"},i.finding_ids.length+T(" finding")+" - "+i.targets.join(", ")),stageChain(i),
+      h("div",null,i.entities.slice(0,4).map(e=>chip(e.kind+" "+e.value)))),
+    h("div",{class:"s",style:"text-align:right;white-space:nowrap"},ago(i.last_ts)));
+  return h("div",null,h("h2",null,T("Incidenti")),
+    !d.enabled?h("div",{class:"err"},T("Il rilevamento degli incidenti e' disattivato (analysis.incidents: false).")):null,
+    h("div",{class:"card"},open.length?h("div",{class:"list"},open.map(card)):h("p",{class:"mut"},T("Nessun incidente: i finding aperti non sono collegati tra loro."))),
+    done.length?h("div",{class:"card",style:"margin-top:14px"},h("h3",null,T("risolti")),h("div",{class:"list"},done.slice(0,20).map(card))):null);
+}
+
+/* ---------- report ---------- */
+async function vReport(){
+  const kind=h("select",null,[["digest",T("Digest (periodo)")],["alert",T("Avviso (finding sopra la soglia)")]].map(([v,l])=>h("option",{value:v},l)));
+  const hours=h("select",null,[[24,T("ultime 24 ore")],[72,T("ultimi 3 giorni")],[168,T("ultimi 7 giorni")],[720,T("ultimi 30 giorni")]].map(([v,l])=>h("option",{value:v},l)));
+  const ai=h("input",{type:"checkbox",disabled:!overview.llm.usable});
+  const out=h("div");
+  const run=async()=>{
+    out.replaceChildren(h("p",null,h("span",{class:"spin"}),ai.checked?T("Generazione con sintesi AI in corso..."):T("Generazione...")));
+    try{
+      const j=await api("/api/report",{method:"POST",body:{kind:kind.value,hours:+hours.value,synthesize:ai.checked}});
+      const r=await pollJob(j.job);
+      if(r.state==="error"){out.replaceChildren(h("div",{class:"err"},r.error));return;}
+      const res=r.result;
+      const dl=(name,mime,data)=>()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type:mime}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);};
+      out.replaceChildren(h("div",{class:"card"},h("div",{class:"row"},h("b",null,res.subject),h("span",{class:"sp"}),
+        h("button",{class:"btn sec",onclick:dl("report.html","text/html",res.html)},T("Scarica HTML")),
+        h("button",{class:"btn sec",onclick:dl("report.txt","text/plain",res.text)},T("Scarica TXT"))),
+        h("p",{class:"mut"},T("Anteprima: e' la stessa mail che l'agente invierebbe. Non e' stato inviato nulla.")),
+        h("iframe",{class:"pv",sandbox:"",srcdoc:res.html})));
+    }catch(e){if(e.message!=="401")out.replaceChildren(h("div",{class:"err"},e.message));}
+  };
+  return h("div",null,h("h2",null,"Report"),
+    h("div",{class:"card"},h("div",{class:"filters"},kind,hours,
+      h("label",{class:"row"},ai,T(" con sintesi AI (usa il modello)"))),
+      h("p",null,h("button",{class:"btn",onclick:run},T("Genera anteprima")))),out);
+}
+
+/* ---------- mail / stato ---------- */
+async function vMail(){
+  const d=await api("/api/notifications");
+  return h("div",null,h("h2",null,T("Mail inviate")),h("div",{class:"card scroll"},d.items.length?h("table",null,
+    h("thead",null,h("tr",null,[T("Quando"),T("Tipo"),T("Esito"),T("Oggetto"),"Finding"].map(x=>h("th",null,x)))),
+    h("tbody",null,d.items.map(n=>[h("tr",null,h("td",null,ts(n.created_at)),h("td",null,chip(n.kind)),
+      h("td",null,n.status==="sent"?h("span",{style:"color:var(--ok)"},T("inviata")):h("span",{class:"warn"},T("fallita"))),h("td",null,n.subject),h("td",null,n.findings||"")),
+      n.summary||n.error?h("tr",null,h("td",{colspan:5,class:"mut"},n.error?T("Errore: ")+n.error:n.summary)):null]))):h("p",{class:"mut"},T("Nessuna mail ancora."))));
+}
+async function vStatus(){
+  overview=await api("/api/overview");
+  return h("div",null,h("h2",null,T("Stato dei collector (ultime 24 h)")),h("div",{class:"card scroll"},h("table",null,
+    h("thead",null,h("tr",null,["Target","Collector",T("Ultimo successo"),T("Riusciti"),T("Falliti"),T("Ultimo errore")].map(x=>h("th",null,x)))),
+    h("tbody",null,overview.health.map(r=>h("tr",null,h("td",null,r.target),h("td",null,r.collector),
+      h("td",null,r.stale?h("span",{class:"warn"},T("FERMO - ")+ago(r.last_ok)):ago(r.last_ok)),h("td",null,r.ok),h("td",null,r.errors),h("td",{class:"mono"},r.errors?r.last_error:"")))))));
+}
+
+
+/* ---------- mappa degli attacchi ---------- */
+/*WORLD_DATA*/
+const RISKCOL={critical:"#ff4d4d",high:"#ff9340",medium:"#f5c542",low:"#5aa2ff"};
+const RISKRANK={low:0,medium:1,high:2,critical:3};
+const RISKIT={critical:T("critico"),high:T("alto"),medium:T("medio"),low:T("basso")};
+let mapq={days:"7",target:"",risk:"low"};
+function flag(cc){return cc&&cc.length===2?String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt(0))):"";}
+function worldPaths(){
+  if(window._wp)return window._wp;
+  window._wp=WORLD.map(f=>{let x=f[0],y=f[1];const pts=[[x/10,y/10]];for(let i=2;i<f.length;i+=2){x+=f[i];y+=f[i+1];pts.push([x/10,y/10]);}return pts;});
+  return window._wp;
+}
+function srcDetail(a){
+  const t=a.attempts;
+  return [h("div",{class:"card"},h("div",{class:"row"},h("b",{class:"mono"},a.ip),h("span",{class:"badge",style:"background:"+RISKCOL[a.risk]+";color:#111"},RISKIT[a.risk])),
+    h("dl",{class:"kv",style:"margin-top:10px"},
+      h("dt",null,T("Posizione")),h("dd",null,a.local?T("rete locale / indirizzo non pubblico"):a.cc?flag(a.cc)+" "+[a.city,a.region,a.cc].filter(Boolean).join(", ")+T(" (approssimata)"):T("sconosciuta (database geografico assente o indirizzo non presente)")),
+      h("dt",null,T("Tentativi")),h("dd",null,t+T(" in totale")),
+      h("dt",null,"SSH"),h("dd",null,a.ssh_fail+T(" falliti, ")+a.ssh_ok+T(" riusciti")),
+      h("dt",null,T("Scansioni")),h("dd",null,a.scans+T(" (protocollo SSH anomalo)")),
+      h("dt",null,"Web"),h("dd",null,a.web_hits+T(" richieste d'attacco, ")+a.web_4xx+T(" errori 4xx")),
+      h("dt",null,T("Target colpiti")),h("dd",null,a.targets.join(", ")),
+      h("dt",null,T("Primo / ultimo")),h("dd",null,ts(a.first_seen)+" / "+ts(a.last_seen)),
+      a.users.length?[h("dt",null,T("Utenti provati")),h("dd",{class:"mono"},a.users.join(", "))]:null),
+    a.risk==="critical"?h("div",{class:"err"},T("Questo indirizzo ha ottenuto un accesso dopo ripetuti fallimenti: verifica subito la sessione e le credenziali coinvolte.")):null)];
+}
+function clusterDrawer(c){
+  openDrawer([h("div",{class:"card"},h("h2",null,flag(c.cc)+" "+[c.city,c.region].filter(Boolean).join(", ")),
+    h("p",{class:"mut"},c.items.length+T(" indirizzi, ")+c.attempts+T(" tentativi")),
+    h("div",{class:"list"},c.items.sort((x,y)=>y.attempts-x.attempts).slice(0,60).map(a=>h("div",{class:"item",onclick:()=>openDrawer(srcDetail(a))},
+      h("span",{class:"badge",style:"background:"+RISKCOL[a.risk]+";color:#111"},RISKIT[a.risk]),h("div",{class:"sp"},h("span",{class:"mono"},a.ip),h("div",{class:"s"},a.ssh_fail+T(" SSH falliti, ")+a.ssh_ok+" ok, "+a.scans+T(" scan, ")+a.web_hits+T(" web"))),h("div",{class:"s"},ago(a.last_seen)))))) ]);
+}
+function buildMap(items){
+  const wrap=h("div",{class:"mapwrap"}),cv=h("canvas"),tip=h("div",{class:"tip"});
+  const groups=new Map();
+  for(const a of items){if(a.lat==null)continue;const k=a.lat.toFixed(1)+","+a.lon.toFixed(1);let g=groups.get(k);if(!g){g={lat:a.lat,lon:a.lon,cc:a.cc,city:a.city,region:a.region,items:[],attempts:0,risk:"low",last:0};groups.set(k,g);}
+    g.items.push(a);g.attempts+=a.attempts;g.last=Math.max(g.last,a.last_seen);if(RISKRANK[a.risk]>RISKRANK[g.risk])g.risk=a.risk;}
+  const clusters=[...groups.values()].sort((a,b)=>a.attempts-b.attempts);
+  const st={k:1,x:0,y:0,init:false};
+  const base=()=>cv.clientWidth/360;
+  const rad=c=>Math.min(26,4+Math.sqrt(c.attempts)*1.1+Math.min(6,c.items.length*0.3));
+  const P=(lon,lat)=>[st.x+(lon+180)*base()*st.k,st.y+(90-lat)*base()*st.k];
+  function clamp(){const w=cv.clientWidth,hh=cv.clientHeight,bw=360*base()*st.k,bh=180*base()*st.k;st.x=bw<=w?(w-bw)/2:Math.min(0,Math.max(w-bw,st.x));st.y=bh<=hh?(hh-bh)/2:Math.min(0,Math.max(hh-bh,st.y));}
+  function draw(){
+    const dpr=window.devicePixelRatio||1,w=cv.clientWidth,hh=cv.clientHeight;if(!w)return;
+    if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(hh*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(hh*dpr);}
+    if(!st.init){st.init=true;st.x=0;st.y=0;}
+    clamp();
+    const c=cv.getContext("2d");c.setTransform(dpr,0,0,dpr,0,0);
+    c.fillStyle="#0a1020";c.fillRect(0,0,w,hh);
+    c.strokeStyle="rgba(90,110,160,.12)";c.lineWidth=1;c.beginPath();
+    for(let lon=-180;lon<=180;lon+=30){const[x]=P(lon,0);c.moveTo(x,P(0,90)[1]);c.lineTo(x,P(0,-90)[1]);}
+    for(let lat=-90;lat<=90;lat+=30){const[,y]=P(0,lat);c.moveTo(P(-180,0)[0],y);c.lineTo(P(180,0)[0],y);}
+    c.stroke();
+    c.fillStyle="#1a2a48";c.strokeStyle="#34497a";c.lineWidth=.7;
+    for(const poly of worldPaths()){c.beginPath();poly.forEach(([lo,la],i)=>{const[x,y]=P(lo,la);i?c.lineTo(x,y):c.moveTo(x,y);});c.closePath();c.fill();c.stroke();}
+    const nowS=Date.now()/1000;
+    for(const g of clusters){
+      const[x,y]=P(g.lon,g.lat),r=rad(g);
+      if(x<-40||y<-40||x>w+40||y>hh+40)continue;
+      const col=RISKCOL[g.risk];
+      c.save();c.shadowColor=col;c.shadowBlur=14;c.fillStyle=col+"bb";c.beginPath();c.arc(x,y,r,0,7);c.fill();c.restore();
+      c.strokeStyle=col;c.lineWidth=1.5;c.beginPath();c.arc(x,y,r,0,7);c.stroke();
+      if(nowS-g.last<3600){c.strokeStyle="rgba(255,255,255,.85)";c.lineWidth=1;c.beginPath();c.arc(x,y,r+4,0,7);c.stroke();}
+      if(g.items.length>1&&r>9){c.fillStyle="#0a1020";c.font="bold 11px sans-serif";c.textAlign="center";c.textBaseline="middle";c.fillText(String(g.items.length),x,y);}
+    }
+  }
+  function hit(ev){
+    const b=cv.getBoundingClientRect(),mx=ev.clientX-b.left,my=ev.clientY-b.top;let best=null,bd=1e9;
+    for(const g of clusters){const[x,y]=P(g.lon,g.lat),d=Math.hypot(x-mx,y-my);if(d<=rad(g)+5&&d<bd){best=g;bd=d;}}
+    return {g:best,mx,my};
+  }
+  let drag=null,moved=false;
+  cv.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,sx:st.x,sy:st.y};moved=false;cv.setPointerCapture(e.pointerId);cv.classList.add("drag");});
+  cv.addEventListener("pointermove",e=>{
+    if(drag){const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>3)moved=true;st.x=drag.sx+dx;st.y=drag.sy+dy;draw();tip.style.display="none";return;}
+    const{g,mx,my}=hit(e);
+    if(!g){tip.style.display="none";return;}
+    const top=g.items.slice().sort((a,b)=>b.attempts-a.attempts).slice(0,4);
+    tip.replaceChildren(h("b",null,flag(g.cc)+" "+[g.city,g.cc].filter(Boolean).join(", ")),h("div",{style:"color:#9aa6c0"},g.items.length+T(" indirizzi - ")+g.attempts+T(" tentativi")),...top.map(a=>h("div",{class:"mono"},a.ip+"  "+a.attempts)));
+    tip.style.display="block";tip.style.left=Math.min(mx+14,cv.clientWidth-280)+"px";tip.style.top=Math.max(4,my+14)+"px";
+  });
+  cv.addEventListener("pointerup",e=>{cv.classList.remove("drag");const was=moved;drag=null;if(!was){const{g}=hit(e);if(g)clusterDrawer(g);}});
+  cv.addEventListener("pointerleave",()=>{tip.style.display="none";});
+  const zoom=(f,cx,cy)=>{const nk=Math.min(14,Math.max(1,st.k*f));if(nk===st.k)return;const r=nk/st.k;st.x=cx-(cx-st.x)*r;st.y=cy-(cy-st.y)*r;st.k=nk;draw();};
+  cv.addEventListener("wheel",e=>{e.preventDefault();const b=cv.getBoundingClientRect();zoom(e.deltaY<0?1.3:1/1.3,e.clientX-b.left,e.clientY-b.top);},{passive:false});
+  const btns=h("div",{class:"mapbtns"},h("button",{title:T("Ingrandisci"),onclick:()=>zoom(1.5,cv.clientWidth/2,cv.clientHeight/2)},"+"),h("button",{title:T("Riduci"),onclick:()=>zoom(1/1.5,cv.clientWidth/2,cv.clientHeight/2)},"-"),
+    h("button",{title:T("Vista intera"),onclick:()=>{st.k=1;st.x=0;st.y=0;draw();}},"⌂"));
+  const legend=h("div",{class:"maplegend"},Object.entries(RISKCOL).reverse().map(([k,c])=>h("span",null,h("i",{style:"background:"+c}),RISKIT[k])),h("span",null,h("i",{style:"background:none;border:1px solid #fff"}),T("attivo nell'ultima ora")));
+  wrap.append(cv,tip,btns,legend);
+  const ro=new ResizeObserver(()=>draw());setTimeout(()=>{ro.observe(cv);draw();},0);
+  return wrap;
+}
+async function vMap(){
+  const p=new URLSearchParams({days:mapq.days});if(mapq.target)p.set("target",mapq.target);
+  const d=await api("/api/sources?"+p);
+  const apply=()=>show("map",true);
+  const items=d.items.filter(a=>RISKRANK[a.risk]>=RISKRANK[mapq.risk]);
+  const sel=(k,opts)=>h("select",{onchange:e=>{mapq[k]=e.target.value;apply();}},opts.map(([v,l])=>h("option",{value:v,selected:mapq[k]===v},l)));
+  const unplaced=items.filter(a=>a.lat==null);
+  const maxC=Math.max(1,...d.by_country.map(c=>c.attempts));
+  return h("div",null,h("h2",null,T("Mappa dei tentativi di accesso")),
+    d.geo.available?null:h("div",{class:"err"},T("Database di geolocalizzazione non installato: gli indirizzi sono elencati ma non posizionati. Esegui sulla macchina dell'agente: "),h("span",{class:"mono"},"dyna_cyber_agent --config <file> --geo-update")),
+    h("div",{class:"grid kpis",style:"margin-bottom:14px"},kpi(d.addresses,T("indirizzi distinti")),kpi(d.attempts,T("tentativi registrati")),kpi(d.located,T("posizionati sulla mappa")),kpi(d.by_country.length,T("paesi (primi 15)")),
+      kpi(items.filter(a=>a.risk==="critical").length,T("accessi dopo fallimenti"),items.some(a=>a.risk==="critical")?4:null)),
+    h("div",{class:"filters"},
+      sel("days",[["1",T("ultime 24 ore")],["7",T("ultimi 7 giorni")],["30",T("ultimi 30 giorni")],["0",T("da sempre")]]),
+      sel("target",[["",T("tutti i target")],...overview.targets.map(t=>[t.name,t.name])]),
+      sel("risk",[["low",T("ogni livello")],["medium",T("da medio")],["high",T("da alto")],["critical",T("solo critici")]])),
+    buildMap(items),
+    h("div",{class:"mut",style:"font-size:12px;margin:6px 2px"},d.geo.available?T("Posizioni: IP geolocation by DB-IP (db-ip.com), CC BY 4.0, calcolate localmente: nessun indirizzo viene inviato a servizi esterni. Precisione a livello di citta', a volte solo di paese. Mappa: Natural Earth (pubblico dominio)."):T("Mappa: Natural Earth (pubblico dominio).")),
+    h("div",{class:"grid two",style:"margin-top:14px"},
+      h("div",{class:"card"},h("h3",null,T("Paesi piu' attivi")),d.by_country.length?d.by_country.map(c=>h("div",{style:"display:flex;gap:8px;align-items:center;margin:6px 0"},h("span",{style:"width:70px"},flag(c.cc)+" "+c.cc),h("div",{class:"bar2",style:"flex:1"},h("i",{style:"width:"+(100*c.attempts/maxC)+"%"})),h("span",{class:"mut",style:"min-width:110px;text-align:right"},c.attempts+T(" tent. / ")+c.addresses+" IP"))):h("p",{class:"mut"},T("Nessun indirizzo posizionato."))),
+      h("div",{class:"card"},h("h3",null,T("Senza posizione (")+unplaced.length+")"),h("p",{class:"mut",style:"margin-top:0"},T("Reti private/locali e indirizzi assenti dal database.")),
+        h("div",{class:"list"},unplaced.slice(0,12).map(a=>h("div",{class:"item",onclick:()=>openDrawer(srcDetail(a))},h("span",{class:"badge",style:"background:"+RISKCOL[a.risk]+";color:#111"},RISKIT[a.risk]),h("div",{class:"sp mono"},a.ip),h("div",{class:"s"},a.attempts+T(" tent.")))))),
+    ),
+    h("div",{class:"card scroll",style:"margin-top:14px"},h("h3",null,T("Indirizzi (")+items.length+(items.length>150?T(", primi 150"):"")+")"),
+      h("table",null,h("thead",null,h("tr",null,[T("Rischio"),"IP",T("Posizione"),T("SSH ko/ok"),"Scan","Web",T("Ultimo"),"Target"].map(x=>h("th",null,x)))),
+        h("tbody",null,items.slice(0,150).map(a=>h("tr",{style:"cursor:pointer",onclick:()=>openDrawer(srcDetail(a))},
+          h("td",null,h("span",{class:"badge",style:"background:"+RISKCOL[a.risk]+";color:#111"},RISKIT[a.risk])),h("td",{class:"mono"},a.ip),
+          h("td",null,a.local?T("rete locale"):a.cc?flag(a.cc)+" "+[a.city,a.cc].filter(Boolean).join(", "):"-"),
+          h("td",null,a.ssh_fail+" / "+a.ssh_ok),h("td",null,a.scans),h("td",null,a.web_hits),h("td",null,ago(a.last_seen)),h("td",null,a.targets.join(", "))))))));
+}
+
+/* ---------- avvio ---------- */
+$("loginhelp").append(T("Inserisci il token della console. Si trova nel file indicato all'avvio dell'agente ("),h("span",{class:"mono"},"web.token"),T(" nella "),h("span",{class:"mono"},"state_dir"),").");
+$("loginbtn").textContent=T("Entra");$("logout").textContent=T("Esci");$("theme").title=T("Tema chiaro/scuro");$("logout").title=T("Esci");
+$("loginform").addEventListener("submit",e=>{e.preventDefault();enter($("tokeninput").value.trim());});
+$("logout").addEventListener("click",()=>logout());
+$("drawerback").addEventListener("click",closeDrawer);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
+$("theme").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  const nx=cur==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",nx);try{localStorage.setItem("theme",nx);}catch(e){}
+});
+try{const t=localStorage.getItem("theme");if(t)document.documentElement.setAttribute("data-theme",t);}catch(e){}
+let saved=null;try{saved=sessionStorage.getItem("tk");}catch(e){}
+if(saved)enter(saved);else logout();
+</script>
+</body>
+</html>

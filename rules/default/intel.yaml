@@ -1,0 +1,45 @@
+# Threat-intelligence rules. The agent downloads public IP blocklists (botnet C2 servers, hijacked networks, known
+# attackers) to its own machine and matches addresses locally; nothing about your machines is ever sent anywhere.
+# Observations that touch a listed address carry `ti.list` and `ti.category` and the tags ti_malicious / ti_c2.
+
+- id: TI-001
+  title: Connection to a known botnet command-and-control server
+  severity: critical
+  mitre: [T1071, T1105]
+  description: >
+    The machine has an open (or just attempted) connection to an address that a threat feed lists as a botnet
+    command-and-control server (see the list name in the evidence). That is what an infected machine does.
+  remediation: >
+    Treat the machine as infected. Identify the process holding the connection (owners in the evidence), isolate the
+    machine from the network if you can do so without losing evidence, preserve memory and disk, and investigate.
+  match:
+    type: socket.inet
+    tags_all: [ti_c2]
+
+- id: TI-002
+  title: Connection to an address on a threat list
+  severity: high
+  mitre: [T1071]
+  description: >
+    The machine is connected to an address that a public blocklist (compromised hosts, known attackers or
+    scanners) lists. The list name and category are in the evidence. Shared infrastructure sometimes lands on a
+    list by mistake, so look at what the program is.
+  remediation: Identify the program and the reason for the connection. Block the address if there is no business need.
+  match:
+    type: socket.inet
+    tags_all: [ti_malicious]
+    where:
+      - {field: ti.category, op: in, value: [attacker, compromised, scanner]}
+
+- id: TI-003
+  title: Successful login from an address on a threat list
+  severity: critical
+  mitre: [T1078, T1110]
+  description: >
+    Someone logged in from an address that public blocklists associate with attackers or compromised machines.
+  remediation: >
+    Treat the account as compromised. End its sessions, change its credentials and keys, review what it did since
+    the login, and block the address.
+  match:
+    type: log.auth.login
+    tags_all: [ti_malicious]

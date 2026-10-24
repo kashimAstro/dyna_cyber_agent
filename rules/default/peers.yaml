@@ -1,0 +1,44 @@
+# Peer-group rules (collector `peers`). Targets that share a `group:` are compared with each other. These rules
+# fire regardless of the baseline: something installed before monitoring started is "normal" for the baseline, but
+# not for the four identical machines next to it.
+
+- id: PEER-001
+  title: Security-sensitive item exists on this machine only
+  severity: high
+  mitre: [T1136.001, T1098, T1547.006, T1053.003]
+  description: >
+    An account, privileged group membership, SSH key, sudo rule, kernel module or cron entry is present here and
+    absent from (almost) every other machine of the same group. Fleets of identical servers are normally identical
+    in exactly these things, so a difference is either an undocumented change or a foothold.
+  remediation: >
+    Find out who added it and when (account creation date, `last`, the file's change time, the auth log). If it is
+    legitimate, make the other machines match (or move this one to another group); if not, treat the machine as compromised.
+  match:
+    type: peer.deviation
+    tags_all: [peer_unique, sensitive]
+
+- id: PEER-002
+  title: Program or service exists on this machine only
+  severity: medium
+  mitre: [T1036, T1543]
+  description: >
+    A program outside the system directories is running, or a port is listening, here and on (almost) none of the
+    other machines of the group.
+  remediation: Check whether it belongs to this machine's role (package, deployment, change record). If nobody can say what it is, investigate it as unknown software.
+  match:
+    type: peer.deviation
+    tags_all: [peer_unique]
+    where:
+      - {field: facet, op: in, value: [process.exe, net.listen, systemd.enabled]}
+
+- id: PEER-003
+  title: This machine lacks something every other machine of the group has
+  severity: low
+  mitre: [T1562.001]
+  description: >
+    Almost all the other machines of the group run a program, listen on a port or have a service enabled that is
+    missing here: a service that stopped, or a security tool that was removed.
+  remediation: Check why it is missing (stopped service, failed deployment, tool removed on purpose). Disabling a security tool is a classic first step of an intruder.
+  match:
+    type: peer.deviation
+    tags_any: [peer_missing]

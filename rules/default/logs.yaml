@@ -1,0 +1,453 @@
+# Log rules. Observations come from the `logs` collector: log.auth.* (sshd, sudo, su, account tools),
+# log.web.* (nginx/apache access logs), log.kernel. Events are folded per source address / subject and
+# per day, so a long attack is one finding that keeps counting, not a thousand.
+
+- id: LOG-001
+  title: Brute-force login attempts
+  severity: medium
+  cwe: [CWE-307]
+  mitre: [T1110.001]
+  description: >
+    Many failed SSH logins from one address inside a few minutes: a password-guessing attack.
+  remediation: >
+    Block the address (firewall, fail2ban/sshguard), make sure password logins are disabled or the
+    accounts have strong passwords, and check whether any login from this address succeeded.
+  match:
+    type: log.auth.bruteforce
+    tags_any: [external_ip]
+
+- id: LOG-002
+  title: Login succeeded after repeated failures from the same address
+  severity: critical
+  cwe: [CWE-307]
+  mitre: [T1110, T1078]
+  description: >
+    An address that failed to log in several times then logged in successfully: the guessing attack
+    probably worked.
+  remediation: >
+    Treat the account as compromised. Terminate its sessions, change its credentials and keys, review
+    what it did since the login (shell history, process list, new files, cron and ssh keys) and block the address.
+  match:
+    type: log.auth.bruteforce
+    tags_any: [success_after_failures]
+
+- id: LOG-003
+  title: Password spraying across many accounts
+  severity: medium
+  cwe: [CWE-307]
+  mitre: [T1110.003]
+  description: >
+    One address tried five or more different user names. This is account discovery or password spraying.
+  remediation: Block the address and review which of the tried names really exist on the machine.
+  match:
+    type: log.auth.bruteforce
+    tags_any: [many_users]
+
+- id: LOG-004
+  title: Root logged in over SSH with a password
+  severity: high
+  cwe: [CWE-250]
+  mitre: [T1078.003, T1021.004]
+  description: >
+    Direct root login with password authentication leaves the most powerful account exposed to guessing.
+  remediation: Disable PermitRootLogin and password authentication; use named accounts with sudo and keys.
+  match:
+    type: log.auth.login
+    tags_all: [root_login, password_login]
+
+- id: LOG-005
+  title: Root logged in from an external address
+  severity: high
+  mitre: [T1078.003, T1021.004]
+  description: A direct root login came from an address outside the private ranges.
+  remediation: Confirm it was you or an authorised administrator; otherwise treat the host as compromised.
+  match:
+    type: log.auth.login
+    tags_all: [root_login, external_ip]
+
+- id: LOG-006
+  title: Login from a source address never seen for this user
+  severity: low
+  mitre: [T1078]
+  description: The user logged in from an address that is not part of the learned baseline.
+  remediation: Check with the user. If legitimate (new office, VPN) accept it; otherwise investigate the session.
+  match:
+    type: log.auth.login
+    drift: auth.login
+
+- id: LOG-007
+  title: Login from a new external address
+  severity: medium
+  mitre: [T1078]
+  description: The user logged in from an external address never seen before for this account.
+  remediation: Verify with the user, review the session activity and consider restricting SSH by source address.
+  match:
+    type: log.auth.login
+    tags_all: [external_ip]
+    drift: auth.login
+
+- id: LOG-008
+  title: Root shell obtained through sudo
+  severity: low
+  mitre: [T1548.003]
+  description: A user opened a root shell with sudo (sudo -i, sudo bash...). Usual for administrators, also for intruders.
+  remediation: Confirm it was an administrator at that time.
+  match:
+    type: log.auth.sudo
+    tags_all: [sudo_shell, sudo_to_root]
+
+- id: LOG-009
+  title: Sudo used for a command never seen for this user
+  severity: low
+  mitre: [T1548.003]
+  description: The user ran a privileged command that is not part of the learned baseline.
+  remediation: Check what it was for. Accept it if it is part of normal work.
+  match:
+    type: log.auth.sudo
+    drift: auth.sudo
+
+- id: LOG-010
+  title: Sudo attempted by a user without permission
+  severity: medium
+  mitre: [T1548.003]
+  description: A user who is not in sudoers tried to run a privileged command (privilege escalation attempt).
+  remediation: Ask the user what they were doing; review the account for compromise.
+  match:
+    type: log.auth.sudo_failure
+    tags_any: [not_in_sudoers]
+
+- id: LOG-011
+  title: Failed su attempt
+  severity: low
+  mitre: [T1110]
+  description: Someone tried to switch user with a wrong password.
+  remediation: Check whether it was a typo or a guessing attempt (repeated failures).
+  match:
+    type: log.auth.su
+    tags_any: [su_failed]
+
+- id: LOG-012
+  title: User account created
+  severity: high
+  cwe: [CWE-269]
+  mitre: [T1136.001]
+  description: A new local account was created (useradd/adduser).
+  remediation: Confirm an administrator created it. Otherwise lock it, find who created it and how.
+  match:
+    type: log.auth.account
+    tags_any: [account_created]
+
+- id: LOG-013
+  title: User account deleted
+  severity: medium
+  mitre: [T1531]
+  description: A local account was removed (userdel/deluser). Intruders delete accounts to remove traces.
+  remediation: Confirm it was intended and check the auth log around that time.
+  match:
+    type: log.auth.account
+    tags_any: [account_deleted]
+
+- id: LOG-014
+  title: Account password changed
+  severity: low
+  mitre: [T1098]
+  description: A password was changed with passwd or chpasswd.
+  remediation: Confirm with the account owner, especially for root and service accounts.
+  match:
+    type: log.auth.account
+    tags_any: [password_changed]
+
+- id: LOG-015
+  title: Group membership changed
+  severity: medium
+  mitre: [T1098]
+  description: A user was added to or modified in a group (gpasswd, usermod). Privileged groups give admin rights.
+  remediation: Check which group and which user; remove unauthorised privileges.
+  match:
+    type: log.auth.account
+    tags_any: [group_change]
+
+- id: LOG-016
+  title: SSH scanner probing the server
+  severity: low
+  mitre: [T1595]
+  description: An external host connected to SSH without completing a valid handshake, typical of port scanners.
+  remediation: Informational. Keep SSH patched and restricted; consider rate limiting.
+  match:
+    type: log.auth.scan
+    tags_any: [external_ip]
+
+- id: LOG-020
+  title: SQL injection attempt against the web server
+  severity: medium
+  cwe: [CWE-89]
+  mitre: [T1190]
+  description: A request contains SQL injection patterns (UNION SELECT, sleep(), information_schema...).
+  remediation: Check the application for injectable parameters and block the source if it persists.
+  match:
+    type: log.web.attack
+    tags_any: [web_sqli]
+
+- id: LOG-021
+  title: SQL injection attempt that got a successful response
+  severity: high
+  cwe: [CWE-89]
+  mitre: [T1190]
+  description: A SQL injection request was answered with a success or redirect status. The application may be vulnerable.
+  remediation: Review the request in the access log and the database logs; test the endpoint and fix it urgently.
+  match:
+    type: log.web.attack
+    tags_all: [web_sqli, got_success_response]
+
+- id: LOG-022
+  title: Path traversal or file inclusion attempt
+  severity: medium
+  cwe: [CWE-22]
+  mitre: [T1190, T1083]
+  description: A request tries to read files outside the web root (../, /etc/passwd) or to include remote files.
+  remediation: Verify the application does not expose file paths; block the source if it persists.
+  match:
+    type: log.web.attack
+    tags_any: [web_path_traversal, web_lfi_rfi]
+
+- id: LOG-023
+  title: Path traversal or file inclusion that got a successful response
+  severity: high
+  cwe: [CWE-22]
+  mitre: [T1190, T1083]
+  description: A traversal or inclusion request was answered with a success status; a file may have been disclosed.
+  remediation: Check the response size and content in the access log, rotate any exposed secrets, patch the endpoint.
+  match:
+    type: log.web.attack
+    tags_any: [web_path_traversal, web_lfi_rfi]
+    where:
+      - {field: success_responses, op: gt, value: 0}
+
+- id: LOG-024
+  title: Command injection attempt against the web server
+  severity: high
+  cwe: [CWE-78]
+  mitre: [T1190, T1059]
+  description: A request contains shell commands or code-execution functions (; wget, | sh, $(...), system()).
+  remediation: Check for new processes under the web server user and for files dropped in the web root.
+  match:
+    type: log.web.attack
+    tags_any: [web_rce]
+
+- id: LOG-025
+  title: Log4Shell exploitation attempt
+  severity: high
+  cwe: [CWE-917, CWE-502]
+  mitre: [T1190]
+  description: A request carries a JNDI lookup string (CVE-2021-44228) in the URL or headers.
+  remediation: Make sure Java applications run a patched log4j; check for outbound LDAP/RMI connections from them.
+  match:
+    type: log.web.attack
+    tags_any: [web_log4shell]
+
+- id: LOG-026
+  title: Shellshock exploitation attempt
+  severity: high
+  mitre: [T1190]
+  description: A request carries the Shellshock pattern "() {" (CVE-2014-6271) targeting CGI scripts.
+  remediation: Verify bash is patched and CGI scripts are not exposed.
+  match:
+    type: log.web.attack
+    tags_any: [web_shellshock]
+
+- id: LOG-027
+  title: Web shell access attempt
+  severity: high
+  cwe: [CWE-434]
+  mitre: [T1505.003]
+  description: A request targets a well-known web shell name or passes command parameters to a script.
+  remediation: Look for the file on disk (find the web root for recent .php/.jsp files) and remove it after collecting evidence.
+  match:
+    type: log.web.attack
+    tags_any: [web_webshell]
+
+- id: LOG-028
+  title: Web shell answered requests
+  severity: critical
+  cwe: [CWE-434]
+  mitre: [T1505.003]
+  description: >
+    Requests to a web shell path got success responses: the shell probably exists and works.
+  remediation: Isolate the host, preserve the file and the logs, find how it was uploaded, rotate credentials the web user could read.
+  match:
+    type: log.web.attack
+    tags_all: [web_webshell, got_success_response]
+
+- id: LOG-029
+  title: Vulnerability scanner traffic
+  severity: low
+  mitre: [T1595.002]
+  description: The user agent identifies a known scanner or attack tool (sqlmap, nikto, nuclei...).
+  remediation: Informational; block the source and watch for follow-up attacks from it.
+  match:
+    type: log.web.attack
+    tags_any: [web_scanner_ua]
+
+- id: LOG-030
+  title: Probe for sensitive files
+  severity: low
+  cwe: [CWE-200]
+  mitre: [T1595.003]
+  description: Requests for .env, .git, backups, admin consoles and similar files.
+  remediation: Make sure none of these paths is reachable from outside.
+  match:
+    type: log.web.attack
+    tags_any: [web_sensitive_probe]
+
+- id: LOG-031
+  title: Sensitive file probe that got a successful response
+  severity: high
+  cwe: [CWE-200]
+  mitre: [T1552.001]
+  description: >
+    A probe for a configuration, repository or backup file was answered with a success status: it may be exposed.
+  remediation: Retrieve the same URL yourself, remove or protect the file, and rotate any secret it contained.
+  match:
+    type: log.web.attack
+    tags_all: [web_sensitive_probe, got_success_response]
+
+- id: LOG-032
+  title: Burst of failed web requests from one address
+  severity: low
+  mitre: [T1595]
+  description: Dozens of 4xx answers to one address inside a few minutes, typical of directory and vulnerability scanning.
+  remediation: Informational; rate-limit or block the source.
+  match:
+    type: log.web.scan
+    tags_any: [external_ip]
+
+- id: LOG-040
+  title: Network interface put in promiscuous mode
+  severity: high
+  mitre: [T1040]
+  description: >
+    The kernel logged an interface entering promiscuous mode: a packet sniffer (tcpdump, wireshark, malware) started.
+  remediation: Identify the process (ss -0pa, ps) and confirm it is an administrator's capture.
+  match:
+    type: log.kernel
+    tags_any: [promiscuous_mode]
+
+- id: LOG-041
+  title: Kernel tainted by a module
+  severity: medium
+  mitre: [T1547.006]
+  description: A kernel module failed signature verification or taints the kernel (out-of-tree, unsigned).
+  remediation: Identify the module (lsmod, modinfo) and confirm it is a known driver.
+  match:
+    type: log.kernel
+    tags_any: [module_taint]
+
+- id: LOG-042
+  title: Service crashed with a segmentation fault
+  severity: low
+  mitre: [T1203]
+  description: A process segfaulted. Repeated crashes of a network service can be failed exploitation attempts.
+  remediation: Check the service logs and whether crashes coincide with suspicious requests; keep the service patched.
+  match:
+    type: log.kernel
+    tags_any: [segfault]
+
+- id: LOG-043
+  title: Kernel fault or panic
+  severity: medium
+  description: The kernel logged an oops, a general protection fault or a panic.
+  remediation: Check hardware health and recent kernel/driver changes; a fault may also follow an exploit.
+  match:
+    type: log.kernel
+    tags_any: [kernel_fault]
+
+- id: LOG-044
+  title: SYN flood suspected
+  severity: medium
+  mitre: [T1498.001]
+  description: The kernel reports possible SYN flooding on a port and fell back to SYN cookies.
+  remediation: Check whether it is a real attack or a traffic peak; consider upstream filtering.
+  match:
+    type: log.kernel
+    tags_any: [syn_flood]
+
+- id: LOG-045
+  title: Process killed by the out-of-memory killer
+  severity: low
+  mitre: [T1499]
+  description: The kernel killed a process because memory ran out; can also be caused by resource abuse such as mining.
+  remediation: Check memory consumers and recent changes.
+  match:
+    type: log.kernel
+    tags_any: [oom_kill]
+
+- id: LOG-050
+  title: Log message of a kind never seen on this machine
+  severity: info
+  mitre: [T1070.002]
+  description: >
+    The agent learns the shape of every log message (numbers, addresses and names replaced by placeholders). This
+    shape was not in the baseline: a program is doing something it has not done before, or a new program is
+    writing to the log. Most of the time that is a new feature after an update; once in a while it is the first
+    trace of something that matters.
+  remediation: >
+    Read the sample line in the evidence. If it comes from software you recently installed or configured, ignore it
+    (or accept the finding); if you do not recognise the program, find out what started it.
+  match:
+    type: log.template
+    drift: log.template
+    where:
+      - {field: alarming, op: equals, value: false}
+
+- id: LOG-051
+  title: Never-seen log message that mentions an error or an attack
+  severity: medium
+  mitre: [T1190, T1059]
+  description: >
+    A new kind of log message contains words such as "denied", "failed", "segfault", "corrupt" or "violation". New
+    problems announce themselves exactly like this before any specific rule exists for them.
+  remediation: Read the sample line and the program that wrote it, and check what happened around that time (auth log, application log, recent changes).
+  match:
+    type: log.template
+    drift: log.template
+    tags_any: [alarming_words]
+
+- id: LOG-060
+  title: Impossible travel between two logins
+  severity: high
+  mitre: [T1078]
+  description: >
+    The same account logged in from two places so far apart that no one could have travelled between them in the
+    time that passed (see the distance, time and speed in the evidence). Either the credentials are being used by
+    someone else, or the user switches VPN exit points.
+  remediation: >
+    Ask the user. If they did not log in from both places, treat the account as compromised. End its sessions,
+    change its credentials and keys, and check what it did.
+  match:
+    type: log.auth.login
+    tags_any: [impossible_travel]
+
+- id: LOG-061
+  title: Login from a country this account never logged in from
+  severity: medium
+  mitre: [T1078]
+  description: >
+    This account has a history of logging in from certain countries (learned in the baseline) and this login comes
+    from a new one.
+  remediation: >
+    Confirm with the user (travel, new VPN). If they cannot explain it, treat the credentials as compromised.
+  match:
+    type: log.auth.login
+    drift: auth.country
+
+- id: LOG-062
+  title: Login at an hour this account does not usually log in
+  severity: low
+  mitre: [T1078]
+  description: >
+    The account logged in during a 3-hour slot of the day (UTC) in which it never logged in during the baseline.
+    Many intrusions use stolen credentials when the owner is asleep.
+  remediation: Check with the user, especially if the login is also from a new address or country.
+  match:
+    type: log.auth.login
+    drift: auth.hour

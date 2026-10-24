@@ -1,0 +1,164 @@
+# Vulnerability rules (collector `vulns`: installed software matched against CVE data).
+# Every match triggers exactly one rule: kev (actively exploited), recent or established (published within
+# vuln.new_within_days or earlier), then by score. `confidence` is `high` for distribution advisories (OSV:
+# backported fixes are accounted for) and `low` for upstream-version matches against NVD data, which can
+# over-report because distributions patch without changing the upstream version.
+
+- id: VULN-001
+  title: Installed software has an actively exploited vulnerability
+  severity: critical
+  mitre: [T1190, T1068]
+  description: >
+    The installed version is affected by a CVE listed in the CISA Known Exploited Vulnerabilities
+    catalog: attackers are using it in the wild.
+  remediation: >
+    Update the package to the fixed version shown in the evidence (or apply the vendor mitigation) as soon as
+    possible; CISA's due date is shown when known. If you cannot patch, restrict exposure of the service and
+    check the machine for signs of compromise.
+  match:
+    type: vuln.match
+    tags_any: [kev]
+    where:
+      - {field: confidence, op: equals, value: high}
+
+- id: VULN-002
+  title: Newly published critical vulnerability affects installed software
+  severity: high
+  mitre: [T1190]
+  description: >
+    A critical CVE (CVSS 9.0 or more), published recently, affects an installed package according to the
+    distribution's advisories.
+  remediation: Update the package to the fixed version in the evidence; if no fix exists yet, mitigate (disable the feature, restrict access).
+  match:
+    type: vuln.match
+    tags_any: [recent]
+    where:
+      - {field: confidence, op: equals, value: high}
+      - not: {field: exposed_likely_exploited, op: equals, value: true}
+      - {field: kev, op: equals, value: false}
+      - {field: cvss, op: gte, value: 9.0}
+
+- id: VULN-003
+  title: Newly published high-severity vulnerability affects installed software
+  severity: medium
+  mitre: [T1190]
+  description: A high-severity CVE (CVSS 7.0 to 8.9), published recently, affects an installed package according to the distribution's advisories.
+  remediation: Schedule the package update; check whether the vulnerable component is reachable from the network.
+  match:
+    type: vuln.match
+    tags_any: [recent]
+    where:
+      - {field: confidence, op: equals, value: high}
+      - not: {field: exposed_likely_exploited, op: equals, value: true}
+      - {field: kev, op: equals, value: false}
+      - {field: cvss, op: gte, value: 7.0}
+      - {field: cvss, op: lt, value: 9.0}
+
+- id: VULN-004
+  title: Known critical vulnerability left unpatched
+  severity: medium
+  mitre: [T1190]
+  description: A critical CVE (CVSS 9.0 or more) published some time ago still affects an installed package.
+  remediation: Update the package; long-standing critical flaws are the first ones attackers try.
+  match:
+    type: vuln.match
+    tags_any: [established]
+    where:
+      - {field: confidence, op: equals, value: high}
+      - not: {field: exposed_likely_exploited, op: equals, value: true}
+      - {field: kev, op: equals, value: false}
+      - {field: cvss, op: gte, value: 9.0}
+
+- id: VULN-005
+  title: Known high-severity vulnerability left unpatched
+  severity: low
+  mitre: [T1190]
+  description: A high-severity CVE (CVSS 7.0 to 8.9) published some time ago still affects an installed package.
+  remediation: Include the update in the next maintenance window.
+  match:
+    type: vuln.match
+    tags_any: [established]
+    where:
+      - {field: confidence, op: equals, value: high}
+      - not: {field: exposed_likely_exploited, op: equals, value: true}
+      - {field: kev, op: equals, value: false}
+      - {field: cvss, op: gte, value: 7.0}
+      - {field: cvss, op: lt, value: 9.0}
+
+- id: VULN-006
+  title: New vulnerability without a score affects installed software
+  severity: low
+  description: A recently published CVE affects an installed package but has no CVSS score yet (it is probably awaiting analysis).
+  remediation: Read the advisory in the evidence; the score will appear in the next NVD update.
+  match:
+    type: vuln.match
+    tags_all: [unscored]
+    where:
+      - {field: confidence, op: equals, value: high}
+      - not: {field: exposed_likely_exploited, op: equals, value: true}
+      - {field: kev, op: equals, value: false}
+
+- id: VULN-007
+  title: Network service with a vulnerability that is likely to be exploited
+  severity: high
+  mitre: [T1190]
+  description: >
+    A program that listens on the network is affected by a CVE whose EPSS score says attackers are probably
+    going to use it (10% or more chance of exploitation activity in the next 30 days). Reachable code plus a
+    probable exploit is the combination that gets machines compromised, whatever the CVSS score says.
+  remediation: >
+    Update the package to the fixed version in the evidence first, before the rest of the list. If no fix exists,
+    restrict who can reach the port (firewall, VPN) or disable the feature.
+  match:
+    type: vuln.match
+    tags_all: [epss_high, listening]
+    where:
+      - {field: confidence, op: equals, value: high}
+      - {field: kev, op: equals, value: false}
+
+- id: VULN-008
+  title: Vulnerability with a high exploitation probability
+  severity: medium
+  mitre: [T1190]
+  description: >
+    The CVSS score is below 7, but the EPSS score says exploitation is likely (10% or more in the next 30 days).
+    Scores measure how bad a flaw would be; EPSS measures how likely it is to be used.
+  remediation: Include the update in the next maintenance window, ahead of other medium-scored flaws.
+  match:
+    type: vuln.match
+    tags_any: [epss_high]
+    where:
+      - {field: confidence, op: equals, value: high}
+      - {field: kev, op: equals, value: false}
+      - not: {field: exposed_likely_exploited, op: equals, value: true}
+      - {field: cvss, op: lt, value: 7.0}
+
+- id: VULN-010
+  title: Possibly affected by an actively exploited vulnerability
+  severity: medium
+  mitre: [T1190, T1068]
+  description: >
+    A CVE in the CISA Known Exploited Vulnerabilities catalog matches the upstream version of an installed
+    package. No distribution advisory was available to confirm it, and distributions often backport fixes
+    without changing the version, so this may be already patched.
+  remediation: Check the package changelog or the distribution's security tracker for this CVE; if it is not fixed, update urgently.
+  match:
+    type: vuln.match
+    tags_any: [kev]
+    where:
+      - {field: confidence, op: equals, value: low}
+
+- id: VULN-011
+  title: Possibly vulnerable (upstream version match)
+  severity: low
+  mitre: [T1190]
+  description: >
+    The upstream version of an installed package falls in the affected range of a high-severity CVE. Without
+    distribution data this can be a false positive (backported fix) or a miss.
+  remediation: Verify against the distribution's security tracker; prefer enabling OSV matching (vuln.osv) for supported distributions.
+  match:
+    type: vuln.match
+    where:
+      - {field: confidence, op: equals, value: low}
+      - {field: kev, op: equals, value: false}
+      - {field: cvss, op: gte, value: 7.0}

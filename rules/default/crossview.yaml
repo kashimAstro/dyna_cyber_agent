@@ -1,0 +1,64 @@
+# Cross-view rules (collector `crossview`): the same thing seen through two kernel interfaces, and they disagree.
+# Software that edits one view (a rootkit) leaves the others untouched. A mismatch is reported only after two
+# consecutive runs, so a process that merely started or stopped between the two reads never gets here.
+
+- id: ROOT-001
+  title: Hidden process
+  severity: critical
+  mitre: [T1014, T1564]
+  description: >
+    A process appears in the cgroup membership lists and answers when /proc/<pid>/stat is read directly, but it is
+    missing from the /proc directory listing (what ps and top show). Something is filtering the listing: a rootkit.
+  remediation: >
+    Treat the machine as compromised. Do not trust any command run on it (the tools may be altered too): preserve
+    evidence from outside (disk image, memory dump), then rebuild from known-good media.
+  match:
+    type: crossview.hidden_pid
+    tags_any: [hidden_process]
+
+- id: ROOT-002
+  title: Hidden kernel module
+  severity: critical
+  mitre: [T1014, T1547.006]
+  description: >
+    A loadable kernel module exists in /sys/module but is absent from /proc/modules (lsmod): something removed it
+    from the list the administrator reads. Legitimate modules never hide.
+  remediation: Treat the machine as compromised (see ROOT-001). The module name in the evidence helps to identify the rootkit family.
+  match:
+    type: crossview.hidden_module
+    tags_any: [hidden_module]
+
+- id: ROOT-003
+  title: Listening port visible through only one interface
+  severity: high
+  mitre: [T1014, T1090]
+  description: >
+    A TCP port is listening according to one kernel interface (/proc/net/tcp or netlink/ss) but not the other. A
+    network backdoor hides its port by filtering one of them.
+  remediation: Find the owner with every tool you have (`ss`, `lsof`, `netstat`, /proc/net/tcp) and compare; if they disagree the machine is probably compromised.
+  match:
+    type: crossview.hidden_port
+    tags_any: [hidden_port]
+
+- id: BPF-001
+  title: New eBPF program loaded
+  severity: medium
+  mitre: [T1014, T1562.001]
+  description: >
+    An eBPF program appeared that was not there during the baseline. Legitimate tools (systemd, Cilium, observability
+    agents) load them too, but eBPF is also how modern rootkits hide processes and connections or intercept data.
+  remediation: Identify what loaded it (process list, recently installed packages). If nothing you installed explains it, investigate as a possible rootkit.
+  match:
+    type: bpf.program
+    drift: bpf.program
+
+- id: BPF-002
+  title: New object pinned in the eBPF filesystem
+  severity: medium
+  mitre: [T1014]
+  description: >
+    A new entry appeared in /sys/fs/bpf. It is an eBPF program or map kept alive after the process that loaded it exits.
+  remediation: Find which software created it. Pins that outlive their loader are unusual outside of network tools like Cilium.
+  match:
+    type: bpf.pinned
+    drift: bpf.pinned
