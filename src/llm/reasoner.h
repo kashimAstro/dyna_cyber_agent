@@ -5,6 +5,7 @@
 
 #include "analysis/finding.h"
 #include "llm/analysis.h"
+#include "llm/ask.h"
 #include "llm/llm_client.h"
 #include "llm/synthesis.h"
 
@@ -34,6 +35,9 @@ class Reasoner {
 
   // One report for a whole mail (see Synthesis). Fails when the model is unreachable or its reply is unusable.
   Result<Synthesis> synthesize(const SynthesisInput& in);
+
+  // Answers a free question from the facts the agent collected. `language` is the model-facing name ("italiano" / "english").
+  Result<AskAnswer> ask(const AskInput& in, const std::string& language);
 
   // False while the circuit breaker is open (model unreachable): callers should not even try.
   bool available() const;

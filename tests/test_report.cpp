@@ -846,3 +846,20 @@ TEST_CASE("preview: sample digest and alert", "[.preview]") {
   REQUIRE(a.ok());
   std::ofstream(std::string(dir) + "/alert.txt") << renderText(a.value());
 }
+
+TEST_CASE("notifier: paused from the settings page nothing is sent, and what waited goes out afterwards") {
+  auto st = Store::open(":memory:");
+  Store& store = *st.value();
+  FakeMailer mail;
+  int64_t now = 10000;
+  Notifier n(store, mail, alertCfg(), rctx(false), [&] { return now; });
+  add(store, mk("HI", Severity::High, "h", now - 10));
+  REQUIRE(store.setMeta("mail_pause_until", std::to_string(now + 3600)).ok());
+  REQUIRE_FALSE(n.tick().alert_sent);
+  REQUIRE_FALSE(n.tick(true).alert_sent);                       // even a forced pass (--once) respects the pause
+  REQUIRE(mail.sent.empty());
+  now += 3601;                                                  // the pause is over
+  REQUIRE(n.tick().alert_sent);
+  REQUIRE(mail.sent.size() == 1);
+  REQUIRE(mail.sent[0].html.find("HI") != std::string::npos);   // nothing was lost
+}

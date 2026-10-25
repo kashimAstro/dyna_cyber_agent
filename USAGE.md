@@ -56,6 +56,14 @@ sudo apt install ./dyna-cyber-agent_0.9.0_amd64.deb
 The `.deb` creates the `dyna_cyber_agent` user and the directories, copies the rules and an example configuration
 to `/etc/dyna_cyber_agent/` (never overwriting existing files) and **starts nothing**: see §10.
 
+If the file sits in your home directory, `apt` prints a warning that the download "is performed unsandboxed as root
+because the user `_apt` cannot access the file": it is harmless (apt only reads a local file), and it goes away if you
+install from a directory everybody can read (`cp dyna-cyber-agent_*.deb /tmp/ && sudo apt install /tmp/dyna-cyber-agent_*.deb`).
+If apt ends with an error *after* the line "Setting up dyna-cyber-agent", check what was installed before repeating:
+`dpkg -s dyna-cyber-agent | grep Status` must say `install ok installed`, and `ls /etc/dyna_cyber_agent` must show
+`agent.yaml`, `rules` and `keys`. If it does, the package is fine (the error then comes from a hook of another package
+that apt runs at the end); if it says `half-configured`, run `sudo dpkg --configure -a` and read its output.
+
 ---
 
 ## 2. Quick start (monitor this machine)
@@ -98,7 +106,8 @@ targets:
 | `--once` | runs every collector once, stores, analyses, prints snapshots and new findings; uses the LLM/mail right away if configured |
 | `--events [--all]` | lists open findings (`--all` includes accepted ones) |
 | `--event <id>` | detail of one finding: evidence, what is missing from the baseline, the LLM assessment |
-| `--accept <id>` | "this is normal": marks it accepted and adds its drift to the baseline |
+| `--accept <id> [--note <text>] [--days <n>]` | "this is normal": marks it accepted and adds its drift to the baseline; the note records why, `--days` makes the decision expire (the finding reopens and reports again). The console does the same (§16.13) |
+| `--reopen <id>` | takes an accepted finding back: what the decision had added to the baseline is removed and the finding is open again (§16.13) |
 | `--baseline-status` | per target: LEARNING or ENFORCING, start/end of learning and the number of learned items |
 | `--baseline-lock` | ends the learning phase of all targets now |
 | `--analyze` | has the LLM assess the open findings that have no assessment yet |
@@ -627,6 +636,12 @@ a lock `<state_dir>/agent.lock` and refuses to start if another instance uses th
    correlations. The model also receives the summaries of the last mails sent with the instruction **not to repeat
    them**: it only says what is new or changed. Vulnerabilities appear in at most two sentences. If the model is
    unreachable the mail still goes out, with a note in place of the summary.
+   The summary is at most four short sentences and never repeats the headline; if the model's text arrives cut it is
+   shortened to the last complete sentence. Numbers are attributed to the right subject (attempts against an unknown
+   account are not attempts against a real one), the priorities are at most four and never duplicates, and when an
+   attacker got in (successful login after failures, or from an impossible location) the **first priority is
+   containment**: end the account's sessions, rotate password and keys, block the address. It is an instruction to the
+   model, not a check: a small model may ignore it.
 3. **Incidents** — when findings chain together (§16.2): title with the stages, period, shared addresses and accounts and
    a **timeline**; the three most severe members keep a full card, the others live only in the timeline.
 4. **Security findings** — the detailed cards (evidence, the AI's assessment of that finding, recommended actions). A
@@ -992,6 +1007,7 @@ it**: it contains host names, process command lines and addresses (`--redact` do
 | J | Robustness | VM | leave it running 24 h; try switching off SMTP, llama-server, an SSH target; `kill -9` and restart | no crash; clear logs; no duplicate mail |
 | K | Console and map | any | §15: open the web console; `--geo-update`; run a few simulated logins | all tabs load; the map places public addresses |
 | L | Advanced analysis | test machine(s) | §16.11: one simulation per analysis, after `--baseline-lock`; `--incidents`, `--intel-update` | each finding appears as described; `crossview` stays silent on a clean machine |
+| M | Decisions and questions | test machine + llama-server | §16.12 (simulated attack), §16.13 (accept / reopen), §16.14 (ask the agent), §16.15 (filters, pauses, reset) | the map and the incident appear; an accepted finding stays silent and a deadline reopens it; the answer cites real findings and shows its period |
 
 **B - what to look at.** With `collectors: [processes, network, users, logs, persistence, system, packages]`
 (without `files` and `integrity`, which are slow, at the first pass). The first `--once` is in *learning*: only
@@ -1142,6 +1158,8 @@ What you will find:
 * **Vulnerabilities** — CVEs grouped by machine and package, ordered by **priority**, with CVSS, EPSS, reach
   (listening / local / running), exploited/new, CWE and fixed version; filter "listening on the network only" (§16.3).
 * **Map** — a dark, offline map of every address that attempted to access the monitored machines: see §15.1.
+* **Ask the agent** — a free question in Italian or English ("what changed on web01 since Tuesday?"): §16.14.
+* **Settings** — exclusion filters (packages, ports, users, addresses, paths, rules, CVEs), mail and AI pauses, console preferences, and the **total reset** with a double confirmation: §16.15.
 * **AI analysis** — choose target, collector and minimum severity, ask a free question; the assessments are saved.
 * **Report** — preview (HTML + TXT, downloadable) of a digest or an alert, with or without the AI summary. **It
   sends nothing.**
@@ -1149,9 +1167,11 @@ What you will find:
 
 Security: every API request needs the token (`Authorization: Bearer`); the page is served with a strict CSP and the
 data coming from the analysed machines is always inserted as text, never as HTML. The console is read-only on the
-analysed machines; the only writes are in the agent's database (the AI assessments you ask for). The analyses use
-llama-server like the rest of the agent (`llm.enabled: true`); one at a time, queued. The console does not offer
-"accept in baseline" or "send this report": those stay on the command line, being security decisions.
+analysed machines; the only writes are in the agent's database (the AI assessments you ask for, and your decisions to
+accept a finding as normal or to reopen it: §16.13). The analyses and the questions use llama-server like the rest of
+the agent (`llm.enabled: true`); one at a time, queued. The console does not offer "send this report": that stays on the
+command line. Accepting is a security decision, so it is as protected as everything else: it needs the token, and every
+acceptance is written to the agent's log and kept in the database with its note and time.
 
 ### 15.1 Map of access attempts
 
@@ -1497,5 +1517,196 @@ Do these only on a **test machine** (§14.4), after `--baseline-lock` (all but t
 | 16.7 | a loop that connects every 60 s to an outside test server (`while true; do curl -s https://example.org >/dev/null; sleep 60; done`) after the baseline | `NET-030` after ~10–15 minutes |
 | 16.8 | an SSH login from a VPN exit in another country shortly after one from yours (needs the geo database) | `LOG-060` / `LOG-061` |
 | 16.9 | `--intel-update`, then connect to an address from a list (take one from `<state_dir>/intel/firehol_level1.list`; only open a TCP connection, e.g. `nc -w2 <ip> 80`) | `TI-002` |
+
+---
+
+### 16.12 Simulating an attack from another country (map and incident)
+
+Only on a **test machine**, never on production. The lines below only write text into the test machine's log: nothing
+connects to the addresses used. You need `--geo-update` first, or the map has no coordinates.
+
+```bash
+ATT=1.1.1.1        # public address in another country (Australia); documentation/private ranges are not located
+VICTIM=mario       # a user that exists on the test machine (not root)
+
+# 1. brute force: 12 failures (threshold: 8 in 10 minutes)
+for i in $(seq 1 12); do
+  logger -i -p auth.info -t sshd "Failed password for invalid user admin from $ATT port $((40000+i)) ssh2"
+done
+sleep 70           # one cycle of the `logs` collector (30 s)
+
+# 2. the attacker gets in with a real account after failing
+logger -i -p auth.info -t sshd "Failed password for $VICTIM from $ATT port 41000 ssh2"
+logger -i -p auth.info -t sshd "Accepted password for $VICTIM from $ATT port 41001 ssh2"
+sleep 70
+
+# 3. the same user from a second country shortly after (impossible travel)
+logger -i -p auth.info -t sshd "Accepted publickey for $VICTIM from 80.67.172.162 port 50000 ssh2: RSA SHA256:abc"
+```
+
+What you should see:
+
+* **Map:** one point per address, even for a single attempt (the map is fed by every address that touched the machine, not
+  only by those above a rule threshold).
+* **Findings:** the brute force, the login after failures, and `LOG-060` (and `LOG-061` for a new country).
+* **One incident** (`--incidents`, console *Incidents* tab; the update runs every 20 s) because the findings share the
+  address and the account, from at least two different rules. `root` and private or documentation addresses never link
+  findings. The mail shows the incident with its timeline.
+* To add a threat-list hit pick the attacker address from `<state_dir>/intel/blocklist_de_ssh.list`: the login also
+  becomes `TI-003` (critical) and raises the incident.
+
+If a real attack from abroad is wanted instead, make 10–15 wrong SSH attempts with a non-existent user from a VPN or a VPS
+in another country, against the test machine only; check which country the geo database reports for that address.
+
+The findings and map points stay in the agent's database: use a separate `state_dir` for these trials.
+
+---
+
+### 16.13 Accepting a finding as normal (console and command line)
+
+Some findings are correct but harmless: a new program that is your backup job, a port a colleague opened on purpose.
+Instead of seeing them again and again, accept them.
+
+* **Console:** open a finding and press *Accept as normal...*: write the reason (optional but recommended) and choose
+  how long it holds (for good / 7 / 30 / 90 days). In the *Findings* tab you can also tick several rows and press
+  *Accept selected as normal*. An accepted finding shows when it was accepted, when it reopens and the reason;
+  *Reopen* takes it back (with the filter on "accepted", the same button reopens the selected rows).
+* **Command line:** `--accept <id> --note "backup job" --days 30` and `--reopen <id>`.
+
+What happens:
+
+1. The finding becomes `accepted`: it leaves the open list, the alert and digest mails and the counters. An incident
+   that depended on it is closed at the next update (every 20 s).
+2. What is new in it (process, port, user, cron entry... the "drift") joins the **baseline** as normal. If the same
+   thing comes back it stays silent: it is the same finding, and it stays accepted.
+3. The decision is stored with note, time and expiry. The AI sees the note when you ask it questions about that period
+   (§16.14: "accepted as normal: backup job"), so it does not present it as a threat.
+4. With a deadline, the agent checks every 20 s. When it passes, what the decision had added to the baseline is removed,
+   the finding is open again and **is reported again** (it is a new alert). A forgotten exception cannot hide a
+   problem for ever.
+5. *Reopen* does the same at once.
+
+Cautions:
+
+* A finding with no drift (a brute force from one address, a CVE) is only silenced for the same rule, machine and
+  subject: another address is another finding.
+* Accepting does not fix anything, it records that **you** judged it normal. Do not accept critical findings you have not
+  understood, and prefer a deadline when in doubt. `--events --all` lists what was accepted.
+* If two findings share the same new item, taking one back removes the item from the baseline; the other one stays
+  accepted, but a *new* finding about that item would be reported.
+* It changes only the agent's database. Nothing happens on the machines.
+
+Try it: on a test machine provoke any finding (for instance the new-program test of §14.4), accept it from the console
+"for 7 days" with a reason, check that it disappears from *Open*, appears under *Accepted* with the reason, and that
+provoking it again stays silent; then *Reopen* it and see it come back at the next collection.
+
+---
+
+### 16.14 Ask the agent (console)
+
+The **Ask the agent** tab answers free questions, in Italian or English: *"what changed on web01 since Tuesday?"*,
+*"were there logins from new countries in the last 48 hours?"*, *"what happened yesterday?"*.
+
+The model does not browse the machines and runs nothing. The agent does the work first and gives the model only the result:
+
+1. **Period.** It is read from the question: *today*, *yesterday* (the whole day; *since yesterday* runs until now),
+   *since Tuesday* / *Tuesday* (from that midnight / that day only; the same weekday as today means last week's),
+   *last 36 hours*, *last 3 days*, *last hour*, *last week*, *this week*, *last month* (and the Italian equivalents).
+   Never more than 90 days. If the question names none, the **last 7 days** are used and the answer says so. The
+   selector under the question overrides the text.
+2. **Machines.** The configured target names that appear in the question; none named = all. The selector overrides.
+3. **Facts.** From its own database the agent collects: counts (findings active and new in the period, open now,
+   resolved, accepted as normal, incidents, package changes, mails sent), the 40 most severe findings, up to 8
+   incidents, up to 40 package changes (installed / upgraded / removed), the busiest attack sources and the collection
+   problems. Findings the administrator accepted carry the reason. Time of day is UTC in the facts; "midnight" in the
+   question is the agent host's local midnight.
+4. **Answer.** The model writes the answer from those facts only, uses the agent's numbers, cites findings as `#id`
+   and, when the facts are not enough, says in *what the data does not say* what is missing. Under the answer you see the
+   **cited findings** (click to open), the **period** as understood, the machines and the counts that were given to
+   the model, so you can check the answer against the data.
+
+Limits to know:
+
+* It only knows what the agent recorded: if the agent was stopped, or a collector failed (it is listed in the facts),
+  there is nothing about that time. Snapshots older than `retention_days` are pruned.
+* With more than 40 findings in the period the model sees the most severe ones; the page says how many it was given.
+* Each question stands alone (no memory of the previous ones): repeat machine and period.
+* A small local model can still misread the facts. Treat the answer as a guide and open the cited findings.
+* The question (600 characters at most) and the facts go only to your own llama-server. One AI job at a time (with
+  the analyses and AI reports); it takes seconds to minutes. Needs `llm.enabled: true`.
+* The question is treated as a request, never as an instruction that can change the rules the model follows; the text
+  that comes from the machines is treated as untrusted data, as everywhere else.
+
+Try it: after the simulation of §16.12 ask *"what happened on <machine> in the last hour?"*: the answer must mention the
+brute force and the login, cite their findings and show the period "from ... to now". Then ask something that did not
+happen (*"were any packages removed yesterday?"*): it must say that nothing was recorded, not invent anything.
+
+---
+
+### 16.15 Settings: filters, pauses and total reset (console)
+
+The **Settings** tab gathers what you can change without touching the YAML file. Everything is stored in the agent's
+own database; nothing is written on the analysed machines.
+
+**Exclusion filters.** A filter says "do not report this". Pick a *kind*, type a *value*, optionally limit it to one
+machine, add a reason and choose how long it lasts (for good, 7, 30 or 90 days).
+
+| Kind | Value | Example | What it silences |
+|---|---|---|---|
+| Rule | rule id | `LOG-050`, `LOG-05*` | the rule produces no findings |
+| Package | package name | `linux-*` | vulnerability and package findings for it (also its binaries) |
+| CVE | CVE id | `CVE-2026-1234`, `CVE-2024-*` | that vulnerability, everywhere |
+| Listening port | `22`, `tcp/22`, `udp/5353`, `8000-8100` | `8080` | new/hidden listening sockets on that port |
+| User | account name | `backup`, `svc-*` | actions of that account (logins, sudo, cron, keys); not files, processes or sockets |
+| Address or network | IPv4, `a.b.c.d/n` | `192.168.1.0/24` | findings about that source; the address is left out of the attack map |
+| Path | file or folder | `/opt/app/`, `/srv/data/*.log` | findings on those paths |
+| Program | path or name | `/usr/bin/backup-agent`, `backup-*` | findings about that executable |
+
+How it behaves:
+
+* The agent **keeps reading** what is excluded and the baseline keeps learning it: only the *findings* are dropped.
+  Open findings the filter covers are **closed** at once (the console says how many); they come back, as new findings,
+  if you remove the filter. A filter with a deadline stops working on its own (it stays in the list as *expired*).
+* A filter on one machine does not touch the others.
+* **Refused on purpose**: wildcards alone (`*`), the user `root` (also through a wildcard like `r*`), networks wider
+  than /8, whole system folders (`/usr/*`, `/etc/`), `..` in paths. The message says why.
+* **Export / Import** (JSON) to copy the filters to another installation or keep a backup: up to 200 items per import;
+  invalid ones are listed and skipped, the others go in.
+* The same decisions can be taken for one finding with **Accept as normal** (§16.13); filters are for a whole class.
+
+**Pauses.** *Mails*: 1 h, 4 h, 24 h or 3 days (a maintenance window). Findings are still collected and go out in the
+first mail after the pause: nothing is lost. *AI assessment of new findings*: pause it to free the model; the findings
+wait to be assessed. Analyses and questions you start from the console still work. Both are shown with a badge and
+survive a restart.
+
+**Console preferences** (saved only in your browser): refresh of the overview (never, 15 s, 30 s, 1 min, 5 min) and the
+tab opened first.
+
+**Information** (read-only): version, host, language, machines, retention, alert thresholds and recipients, model,
+vulnerability feeds, database path and size, and what each table holds. The configuration itself is still changed in
+the YAML file.
+
+**Total reset.** *Danger zone → Total reset…* opens a two-step dialog:
+
+1. It lists what will be deleted with the real counts (findings, snapshots, baseline, AI analyses, mail history,
+   incidents, map days, package changes, logins, connections, accepted decisions, filters). You may tick **keep the
+   exclusion filters**, and must tick *I understand*.
+2. You type the word `RESET`; only then the red button works. The server checks the word as well: a request without it
+   is refused.
+
+Before deleting, the agent saves a copy of the database next to it (`<db>.before-reset-<timestamp>`), then empties
+every table in one transaction and compacts the file. The dialog shows how many rows went and where the copy is:
+**delete that copy by hand** when you no longer need it (it holds the old data).
+
+What stays: the public databases (CVE, threat lists, locations), the configuration, the keys and tokens, the log files.
+What starts over: the baseline learns again from zero (the "novelty" rules stay quiet during `baseline.learning`),
+incidents, map and history are empty. The agent keeps running; its in-memory state (for instance the processes it has
+already seen) is cleared by **restarting the service**, which is what to do after a reset.
+
+Try it (on a test installation, never on the production one): add `port 8080` and check that the finding disappears
+from the list; remove it and check that it returns at the next collection. Add `user root` and read the refusal. Pause
+the mails for 1 h, run a simulation (§16.12) and check that no mail goes out, then press *Resume* and check that it
+does. Finally run the reset keeping the filters: the counters go to zero, the filters stay, the copy exists, and the
+console keeps working.
 
 ---

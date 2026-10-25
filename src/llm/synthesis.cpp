@@ -23,7 +23,7 @@ nlohmann::json synthesisSchema() {
       {"required", {"headline", "summary", "priorities", "correlations"}},
       {"properties",
        {{"headline", {{"type", "string"}, {"maxLength", 200}}},
-        {"summary", {{"type", "string"}, {"maxLength", 1400}}},
+        {"summary", {{"type", "string"}, {"maxLength", 1100}}},
         {"priorities",
          {{"type", "array"},
           {"maxItems", 5},
@@ -52,8 +52,13 @@ PromptParts buildSynthesisPrompt(const SynthesisInput& in, const std::string& la
   out.system = systemPrompt(language, admin_focus) +
                "\nTASK FOR THIS CALL: write ONE report for the administrator covering everything in the telemetry (not one note per finding).\n"
                "- headline: one sentence, the most important thing to know.\n"
-               "- summary: 3-6 sentences on the security findings: what happened, how serious, what is probably benign.\n"
-               "- priorities: up to 5 concrete actions in priority order, each tied to the finding_ids it addresses.\n"
+               "- summary: at most 4 short sentences (under 700 characters) on the security findings: what happened, how serious, what is "
+               "probably benign. Do NOT repeat the headline; add what it leaves out. No filler such as 'no benign explanations were provided'.\n"
+               "- Attribute every number to the right subject: attempts against an unknown account are not attempts against a real one, and "
+               "counts per address are not counts per user. When unsure, say 'from this address'.\n"
+               "- priorities: up to 4 concrete actions in priority order, each tied to the finding_ids it addresses, no two saying the same thing. "
+               "When an attacker got in (a successful login after failures, or from an impossible location), the FIRST priority is containment: "
+               "end the account's sessions, rotate its password and keys, block the address. Verification steps come after.\n"
                "- correlations: at most 3 plausible attack chains linking 2+ findings; empty list when there is no real link.\n"
                "- 'incidents' are chains of findings the agent linked by what they share (address, account, program). Narrate each as ONE story "
                "in the summary, in time order, and do not repeat its findings separately. Their finding ids may not all appear in 'security_findings'.\n"

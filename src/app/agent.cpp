@@ -104,8 +104,11 @@ Snapshot Agent::execute(TargetRuntime& t, Job& j) {
   if (s.collector == "logs") {
     std::vector<Store::SourceDelta> deltas;
     std::vector<Observation> rest;
+    ExclusionSet hidden;  // addresses the administrator excluded stay off the attack map too
+    if (auto ex = store_->listExclusions(true, s.ts)) hidden = ExclusionSet(std::move(ex.value()));
     for (auto& o : s.observations) {
       if (o.type != "log.source") { rest.push_back(std::move(o)); continue; }
+      if (hidden.excludesAddress(t.name, o.data.value("src_ip", std::string()))) continue;
       Store::SourceDelta d;
       d.ip = o.data.value("src_ip", std::string());
       d.ssh_fail = o.data.value("ssh_fail", int64_t(0));
@@ -168,8 +171,14 @@ Snapshot Agent::execute(TargetRuntime& t, Job& j) {
 }
 
 void Agent::updateIncidents() {
-  if (!cfg_.analysis.incidents) return;
   const int64_t now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+  // "Accepted as normal for N days" ends by itself: the finding is open again and may alert again.
+  if (auto re = store_->reopenExpired(now)) {
+    for (int64_t id : re.value()) spdlog::info("finding #{}: the acceptance expired, it is open again", id);
+  } else {
+    spdlog::error("acceptances: {}", re.error());
+  }
+  if (!cfg_.analysis.incidents) return;
   auto r = incidents_.update(now);
   if (!r) spdlog::error("incidents: {}", r.error());
 }
@@ -181,6 +190,10 @@ void Agent::scheduleLlm(std::optional<std::chrono::steady_clock::time_point> whe
 
 void Agent::assessNow() {
   if (!reasoner_) return;
+  if (auto p = store_->getMeta("llm_paused"); p && p.value() && *p.value() == "1") {  // paused from the settings page: findings wait
+    scheduleLlm(std::chrono::steady_clock::now() + std::chrono::minutes(1));
+    return;
+  }
   auto r = assessPending(*store_, *reasoner_, 50);
   if (!r) {
     spdlog::warn("LLM assessment skipped: {}", r.error());

@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 
+#include "analysis/exclusions.h"
 #include "analysis/finding.h"
 #include "collectors/collector.h"
 #include "llm/analysis.h"
@@ -182,14 +183,52 @@ class Store {
   Result<size_t> resolveFindings(const std::vector<int64_t>& ids, int64_t ts);
   Result<size_t> countResolvedSince(int64_t ts);
 
-  // Marks a finding accepted and adds its drift identities to the target's baseline.
-  Result<bool> acceptFinding(int64_t id, int64_t now);
+  // --- the administrator's decisions: "this is normal" ---
+  struct Acceptance {
+    int64_t finding_id = 0, accepted_at = 0;
+    int64_t expires_at = 0;       // 0 = for good; otherwise the finding is reopened (and alerts again) at that time
+    std::string note;
+    std::vector<Identity> added;  // what this decision put into the baseline: reopening takes exactly these out again
+  };
+  // Marks a finding accepted and adds its drift identities to the target's baseline. A repeat call updates note and expiry.
+  Result<bool> acceptFinding(int64_t id, int64_t now, const std::string& note = "", int64_t expires_at = 0);
+  Result<std::optional<Acceptance>> acceptanceOf(int64_t id);
+  // Takes an accepted finding back: its baseline additions are removed, it is open again and may alert again. False when it was not accepted.
+  Result<bool> reopenFinding(int64_t id, int64_t now);
+  // Reopens every acceptance whose time is up; returns the finding ids.
+  Result<std::vector<int64_t>> reopenExpired(int64_t now);
+  Result<size_t> removeFromBaseline(const std::string& target, const std::vector<Identity>& ids);
+  // Findings that were seen at any time inside [from, to] (any status), newest activity first. target "" = all.
+  // --- exclusion filters (set from the console) ---
+  // The same kind + pattern + machine is one filter: adding it again only updates note and expiry and returns the existing id.
+  Result<int64_t> addExclusion(const Exclusion& x);
+  Result<bool> deleteExclusion(int64_t id);
+  // active_only: leaves out the ones whose time is up.
+  Result<std::vector<Exclusion>> listExclusions(bool active_only, int64_t now);
+  // Resolves the open findings that an exclusion now covers; returns how many.
+  Result<size_t> resolveExcluded(const ExclusionSet& set, int64_t now);
+
+  // --- maintenance ---
+  // Rows per table of the agent's database (for the settings page).
+  Result<std::vector<std::pair<std::string, int64_t>>> tableCounts();
+  const std::string& path() const { return path_; }
+  int64_t fileSize() const;
+  struct ResetResult {
+    std::string backup_path;  // "" for an in-memory database
+    int64_t rows_deleted = 0;
+  };
+  // Empties the agent's database (everything it learned and found) after saving a copy next to it. The vulnerability database,
+  // the threat lists and the location database are separate files and stay. keep_exclusions keeps the filters.
+  Result<ResetResult> resetAll(bool keep_exclusions, int64_t now);
+
+  Result<std::vector<Finding>> findingsActive(int64_t from, int64_t to, const std::string& target, size_t limit);
 
  private:
   explicit Store(sqlite3* db) : db_(db) {}
   Result<bool> exec(const char* sql);
 
   sqlite3* db_;
+  std::string path_;
   mutable std::recursive_mutex mu_;  // one connection shared by the target threads: every public call is serialised
 };
 

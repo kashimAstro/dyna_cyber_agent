@@ -8,6 +8,7 @@
 #include <numeric>
 #include <set>
 
+#include "app/ask.h"
 #include "app/synthesis.h"
 #include "llm/context.h"
 #include "report/mitre_names.h"
@@ -120,14 +121,23 @@ HttpReply WebApi::handle(const HttpRequest& req) {
       try { return incidentDetail(std::stoll(p.substr(15))); } catch (...) { return error(400, "bad id"); }
     }
     if (p == "/api/sources") return sources(req);
+    if (p == "/api/settings") return settings();
     if (p.rfind("/api/jobs/", 0) == 0) return jobStatus(p.substr(10));
     return error(404, "not found");
   }
   if (req.method == "POST") {
     const json body = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
     if (body.is_discarded() || !body.is_object()) return error(400, "body must be a JSON object");
+    if (p == "/api/settings/exclusions") return addExclusion(body);
+    if (p == "/api/settings/exclusions/import") return importExclusions(body);
+    if (p == "/api/settings/exclusions/delete") return deleteExclusion(body);
+    if (p == "/api/settings/pause") return setPause(body);
+    if (p == "/api/settings/reset") return resetAll(body);
+    if (p == "/api/findings/accept") return acceptFindings(body);
+    if (p == "/api/findings/reopen") return reopenFindings(body);
     if (p == "/api/analyze") return startAnalysis(body);
     if (p == "/api/report") return startReport(body);
+    if (p == "/api/ask") return startAsk(body);
     return error(404, "not found");
   }
   return error(405, "method not allowed");
@@ -267,7 +277,63 @@ HttpReply WebApi::findingDetail(int64_t id) {
   j["mitre_names"] = mitre;
   if (as) j["assessment"] = assessmentJson(*as);
   if (auto inc = st.incidentOfFinding(id); inc && inc.value()) j["incident_id"] = *inc.value();
+  if (f.value()->status == "accepted") {
+    if (auto acc = st.acceptanceOf(id); acc && acc.value()) {
+      j["acceptance"] = {{"accepted_at", acc.value()->accepted_at}, {"expires_at", acc.value()->expires_at}, {"note", acc.value()->note}};
+    }
+  }
   return jsonReply(j);
+}
+
+// ---- the administrator's decisions --------------------------------------------------------------------------
+
+namespace {
+std::vector<int64_t> idsOf(const json& body, size_t max) {
+  std::vector<int64_t> ids;
+  if (!body.contains("ids") || !body["ids"].is_array()) return ids;
+  for (const auto& i : body["ids"]) {
+    if (i.is_number_integer() && i.get<int64_t>() > 0 && ids.size() < max && std::find(ids.begin(), ids.end(), i.get<int64_t>()) == ids.end()) ids.push_back(i.get<int64_t>());
+  }
+  return ids;
+}
+}  // namespace
+
+HttpReply WebApi::acceptFindings(const json& body) {
+  const auto ids = idsOf(body, 200);
+  if (ids.empty()) return error(400, "send \"ids\": [...] (up to 200)");
+  std::string note = body.value("note", std::string());
+  if (note.size() > 500) note.resize(500);
+  const int days = body.contains("days") && body["days"].is_number_integer() ? body["days"].get<int>() : 0;
+  if (days < 0 || days > 3650) return error(400, "days must be between 0 (for good) and 3650");
+  const int64_t t = now();
+  json done = json::array(), failed = json::array();
+  for (int64_t id : ids) {
+    auto r = d_.store->acceptFinding(id, t, note, days > 0 ? t + days * 86400LL : 0);
+    if (r) {
+      done.push_back(id);
+      spdlog::info("finding #{} accepted as normal from the console{}{}", id, days > 0 ? " for " + std::to_string(days) + " day(s)" : "", note.empty() ? "" : ": " + note);
+    } else {
+      failed.push_back({{"id", id}, {"error", r.error()}});
+    }
+  }
+  return jsonReply({{"accepted", done}, {"failed", failed}, {"expires_at", days > 0 ? t + days * 86400LL : 0}});
+}
+
+HttpReply WebApi::reopenFindings(const json& body) {
+  const auto ids = idsOf(body, 200);
+  if (ids.empty()) return error(400, "send \"ids\": [...] (up to 200)");
+  const int64_t t = now();
+  json done = json::array(), failed = json::array();
+  for (int64_t id : ids) {
+    auto r = d_.store->reopenFinding(id, t);
+    if (r && r.value()) {
+      done.push_back(id);
+      spdlog::info("finding #{} reopened from the console", id);
+    } else {
+      failed.push_back({{"id", id}, {"error", r ? "it was not accepted" : r.error()}});
+    }
+  }
+  return jsonReply({{"reopened", done}, {"failed", failed}});
 }
 
 HttpReply WebApi::vulns(const HttpRequest& req) {
@@ -571,6 +637,208 @@ void WebApi::runReport(const std::string& id, std::string kind, int hours, bool 
   }
   finishJob(id, {{"subject", reportSubject(r)}, {"html", renderHtml(r)}, {"text", renderText(r)}, {"with_ai", r.synthesis.has_value()},
                  {"items", r.items.size()}, {"vulns", r.vuln_items.size() + r.omitted_vulns}}, "");
+}
+
+// ---- settings: exclusion filters, pauses, information, reset -----------------------------------------------
+
+namespace {
+json exclusionJson(const Exclusion& x, int64_t now) {
+  return {{"id", x.id}, {"kind", x.kind}, {"pattern", x.pattern}, {"target", x.target}, {"note", x.note}, {"created_at", x.created_at},
+          {"expires_at", x.expires_at}, {"active", x.expires_at == 0 || x.expires_at > now}};
+}
+}  // namespace
+
+HttpReply WebApi::settings() {
+  Store& st = *d_.store;
+  const int64_t t = now();
+  json o = json::object();
+  json ex = json::array();
+  if (auto l = st.listExclusions(false, t)) for (const auto& x : l.value()) ex.push_back(exclusionJson(x, t));
+  o["exclusions"] = ex;
+  o["kinds"] = exclusionKinds();
+  json targets = json::array();
+  for (const auto& tc : d_.cfg.targets) targets.push_back({{"name", tc.name}, {"transport", tc.transport}, {"group", tc.group}});
+  o["targets"] = targets;
+  int64_t mail_until = 0;
+  if (auto p = st.getMeta("mail_pause_until"); p && p.value()) mail_until = std::atoll(p.value()->c_str());
+  bool llm_paused = false;
+  if (auto p = st.getMeta("llm_paused"); p && p.value()) llm_paused = *p.value() == "1";
+  o["pause"] = {{"mail_until", mail_until > t ? mail_until : 0}, {"llm_paused", llm_paused}};
+  const auto& a = d_.cfg.alerting;
+  json rows = json::array();
+  if (auto c = st.tableCounts()) for (const auto& [name, n] : c.value()) rows.push_back({{"table", name}, {"rows", n}});
+  o["info"] = {{"version", d_.version},
+               {"host", d_.report_ctx.host_label},
+               {"language", d_.cfg.language},
+               {"state_dir", d_.cfg.state_dir},
+               {"retention_days", d_.cfg.retention_days},
+               {"alerting", {{"min_severity", a.min_severity}, {"digest_enabled", a.digest_enabled}, {"digest_min_severity", a.digest_min_severity},
+                             {"digest_at", a.digest_at}, {"digest_every_s", a.digest_every.count()}, {"max_per_hour", a.max_per_hour}, {"recipients", a.recipients}}},
+               {"llm", {{"enabled", d_.cfg.llm.enabled}, {"usable", d_.llm != nullptr}, {"url", d_.cfg.llm.url}, {"model", d_.cfg.llm.model}}},
+               {"vuln_enabled", d_.cfg.vuln.enabled},
+               {"db", {{"path", st.path()}, {"size_bytes", st.fileSize()}, {"tables", rows}}}};
+  return jsonReply(o);
+}
+
+namespace {
+// Validates one filter and fills `out`; returns the error text, or "" when fine.
+std::string buildExclusion(const json& b, const std::vector<TargetConfig>& targets, int64_t now, Exclusion& out) {
+  if (!b.is_object()) return "not an object";
+  out.kind = b.value("kind", std::string());
+  auto pat = normalizeExclusionPattern(out.kind, b.value("pattern", std::string()));
+  if (!pat) return pat.error();
+  out.pattern = pat.value();
+  out.target = b.contains("target") && b["target"].is_string() ? b["target"].get<std::string>() : "";
+  if (!out.target.empty() && std::none_of(targets.begin(), targets.end(), [&](const TargetConfig& t) { return t.name == out.target; })) return "unknown machine: " + out.target;
+  out.note = b.value("note", std::string());
+  if (out.note.size() > 300) out.note.resize(300);
+  const int days = b.contains("days") && b["days"].is_number_integer() ? b["days"].get<int>() : 0;
+  if (days < 0 || days > 3650) return "days must be between 0 (never expires) and 3650";
+  out.created_at = now;
+  out.expires_at = days > 0 ? now + days * 86400LL : 0;
+  return "";
+}
+}  // namespace
+
+HttpReply WebApi::addExclusion(const json& body) {
+  Exclusion x;
+  if (const std::string e = buildExclusion(body, d_.cfg.targets, now(), x); !e.empty()) return error(400, e);
+  auto id = d_.store->addExclusion(x);
+  if (!id) return error(500, id.error());
+  x.id = id.value();
+  // What is open and now excluded is closed at once; if the filter is removed later it comes back at the next collection.
+  size_t closed = 0;
+  if (auto r = d_.store->resolveExcluded(ExclusionSet({x}), now())) closed = r.value();
+  spdlog::info("exclusion #{} added from the console: {} '{}'{}{}: {} open finding(s) closed", x.id, x.kind, x.pattern, x.target.empty() ? "" : " on " + x.target,
+               x.note.empty() ? "" : " (" + x.note + ")", closed);
+  return jsonReply({{"id", x.id}, {"pattern", x.pattern}, {"closed", closed}});
+}
+
+HttpReply WebApi::importExclusions(const json& body) {
+  if (!body.contains("items") || !body["items"].is_array()) return error(400, "send \"items\": [...]");
+  if (body["items"].size() > 200) return error(400, "at most 200 filters at a time");
+  json rejected = json::array();
+  size_t added = 0, closed = 0, index = 0;
+  for (const auto& it : body["items"]) {
+    Exclusion x;
+    json copy = it;
+    if (copy.is_object() && !copy.contains("days") && copy.contains("expires_at") && copy["expires_at"].is_number_integer() && copy["expires_at"].get<int64_t>() > now())
+      copy["days"] = static_cast<int>((copy["expires_at"].get<int64_t>() - now() + 86399) / 86400);  // an exported filter keeps its remaining time
+    if (copy.is_object() && copy.contains("expires_at") && copy["expires_at"].is_number_integer() && copy["expires_at"].get<int64_t>() > 0 && copy["expires_at"].get<int64_t>() <= now()) {
+      rejected.push_back({{"index", index++}, {"error", "already expired"}});
+      continue;
+    }
+    if (const std::string e = buildExclusion(copy, d_.cfg.targets, now(), x); !e.empty()) {
+      rejected.push_back({{"index", index++}, {"error", e}});
+      continue;
+    }
+    ++index;
+    auto id = d_.store->addExclusion(x);
+    if (!id) { rejected.push_back({{"index", index - 1}, {"error", id.error()}}); continue; }
+    x.id = id.value();
+    ++added;
+    if (auto r = d_.store->resolveExcluded(ExclusionSet({x}), now())) closed += r.value();
+  }
+  spdlog::info("{} exclusion(s) imported from the console, {} rejected, {} open finding(s) closed", added, rejected.size(), closed);
+  return jsonReply({{"added", added}, {"rejected", rejected}, {"closed", closed}});
+}
+
+HttpReply WebApi::deleteExclusion(const json& body) {
+  if (!body.contains("id") || !body["id"].is_number_integer()) return error(400, "send \"id\"");
+  auto r = d_.store->deleteExclusion(body["id"].get<int64_t>());
+  if (!r) return error(500, r.error());
+  if (!r.value()) return error(404, "no such filter");
+  spdlog::info("exclusion #{} removed from the console", body["id"].get<int64_t>());
+  return jsonReply({{"deleted", body["id"]}});
+}
+
+HttpReply WebApi::setPause(const json& body) {
+  Store& st = *d_.store;
+  json out = json::object();
+  if (body.contains("mail_hours")) {
+    if (!body["mail_hours"].is_number_integer() || body["mail_hours"].get<int>() < 0 || body["mail_hours"].get<int>() > 24 * 30) return error(400, "mail_hours must be between 0 (resume) and 720");
+    const int h = body["mail_hours"].get<int>();
+    const int64_t until = h > 0 ? now() + h * 3600LL : 0;
+    if (auto r = st.setMeta("mail_pause_until", std::to_string(until)); !r) return error(500, r.error());
+    if (h > 0) spdlog::info("mails paused from the console for {} hour(s)", h);
+    else spdlog::info("mails resumed from the console");
+    out["mail_until"] = until;
+  }
+  if (body.contains("llm_paused")) {
+    if (!body["llm_paused"].is_boolean()) return error(400, "llm_paused must be true or false");
+    if (auto r = st.setMeta("llm_paused", body["llm_paused"].get<bool>() ? "1" : "0"); !r) return error(500, r.error());
+    spdlog::info("AI assessment of new findings {} from the console", body["llm_paused"].get<bool>() ? "paused" : "resumed");
+    out["llm_paused"] = body["llm_paused"];
+  }
+  if (out.empty()) return error(400, "send mail_hours and/or llm_paused");
+  return jsonReply(out);
+}
+
+HttpReply WebApi::resetAll(const json& body) {
+  if (body.value("confirm", std::string()) != "RESET") return error(400, "the reset needs the confirmation word RESET");
+  const bool keep = body.value("keep_exclusions", false);
+  spdlog::warn("TOTAL RESET requested from the console{}", keep ? " (filters kept)" : "");
+  auto r = d_.store->resetAll(keep, now());
+  if (!r) {
+    spdlog::error("reset failed: {}", r.error());
+    return error(500, r.error());
+  }
+  spdlog::warn("TOTAL RESET done: {} row(s) deleted, copy saved to '{}'", r.value().rows_deleted, r.value().backup_path);
+  return jsonReply({{"rows_deleted", r.value().rows_deleted}, {"backup_path", r.value().backup_path}, {"kept_exclusions", keep}});
+}
+
+// ---- "ask the agent" --------------------------------------------------------------------------------------
+
+HttpReply WebApi::startAsk(const json& body) {
+  if (!d_.llm) return error(503, "the language model is not configured (llm.enabled: false)");
+  std::string question = body.value("question", std::string());
+  while (!question.empty() && std::isspace(static_cast<unsigned char>(question.back()))) question.pop_back();
+  if (question.empty()) return error(400, "write a question");
+  if (question.size() > 600) return error(400, "the question is too long (600 characters at most)");
+  std::string target = body.contains("target") && body["target"].is_string() ? body["target"].get<std::string>() : "";
+  if (!target.empty()) {
+    const bool known = std::any_of(d_.cfg.targets.begin(), d_.cfg.targets.end(), [&](const TargetConfig& t) { return t.name == target; });
+    if (!known) return error(400, "unknown target");
+  }
+  const int hours = body.contains("hours") && body["hours"].is_number_integer() ? std::max(0, std::min(90 * 24, body["hours"].get<int>())) : 0;
+  {
+    std::lock_guard<std::mutex> lock(mu_);
+    if (running_ >= kMaxRunningJobs) return error(429, "too many jobs running: wait for one to finish");
+  }
+  const std::string id = newJob("ask");
+  std::lock_guard<std::mutex> lock(mu_);
+  threads_.emplace_back([this, id, question = std::move(question), target = std::move(target), hours]() mutable { runAsk(id, std::move(question), std::move(target), hours); });
+  return jsonReply({{"job", id}}, 202);
+}
+
+void WebApi::runAsk(const std::string& id, std::string question, std::string target, int hours) {
+  std::lock_guard<std::mutex> llm_lock(llm_mu_);
+  const int64_t t = now();
+  const std::string lang = askLanguage(question, d_.cfg.language);
+  std::vector<std::string> configured;
+  for (const auto& tc : d_.cfg.targets) configured.push_back(tc.name);
+  const std::vector<std::string> targets = !target.empty() ? std::vector<std::string>{target} : askTargets(question, configured);
+  AskWindow window = parseAskWindow(question, t, lang);
+  if (hours > 0) {
+    window.from = t - hours * 3600LL;
+    window.to = t;
+    window.detected = true;
+    window.label = lang == "en" ? "the last " + std::to_string(hours) + " hours (chosen in the console)" : "le ultime " + std::to_string(hours) + " ore (scelte nella console)";
+  }
+  spdlog::info("console question ({} chars) about {}: {}", question.size(), targets.empty() ? std::string("all machines") : targets.front() + (targets.size() > 1 ? ",..." : ""), window.label);
+  const AskContext ctx = gatherAskContext(*d_.store, targets, configured, window);
+
+  Reasoner reasoner(*d_.llm, d_.llm_options);
+  auto ans = reasoner.ask({question, ctx.facts, ctx.finding_ids}, lang == "en" ? "english" : "italiano");
+  if (!ans) { finishJob(id, {}, ans.error()); return; }
+  json cited = json::array();
+  for (int64_t fid : ans.value().finding_ids) {
+    auto f = d_.store->getFinding(fid);
+    if (f && f.value()) cited.push_back({{"id", fid}, {"title", f.value()->title}, {"severity", toString(f.value()->severity)}, {"target", f.value()->target}, {"status", f.value()->status}});
+  }
+  finishJob(id, {{"answer", ans.value().answer}, {"data_gaps", ans.value().data_gaps}, {"findings", cited}, {"model", ans.value().model},
+                 {"period", {{"from", ctx.window.from}, {"to", ctx.window.to}, {"label", ctx.window.label}, {"detected", ctx.window.detected}}},
+                 {"machines", ctx.targets}, {"counts", ctx.facts["counts"]}, {"findings_shown", ctx.findings_shown}, {"findings_total", ctx.findings_total}}, "");
 }
 
 }  // namespace agent

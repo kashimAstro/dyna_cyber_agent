@@ -396,6 +396,22 @@ TEST_CASE("synthesis prompt: previous mails, aggregate vulnerabilities, untruste
   REQUIRE(p.finding_ids == std::vector<int64_t>{7});
 }
 
+TEST_CASE("synthesis reply: a cut summary ends at a sentence and does not repeat the headline") {
+  const std::string reply = R"({"headline":"Attacker logged in as mario from 1.1.1.1 after a brute force",
+    "summary":"Attacker logged in as mario from 1.1.1.1 after a brute force. The address then logged in again from another country within a minute. No signs of persistence yet. The attacker's actions appear limited to gaining initial access, but there are no signs of active exploitation beyond this single user's un",
+    "priorities":[],"correlations":[]})";
+  auto s = parseSynthesis(reply, {1});
+  REQUIRE(s.ok());
+  REQUIRE(s.value().summary.rfind("The address then logged in again", 0) == 0);
+  REQUIRE(s.value().summary.back() == '.');
+  REQUIRE(s.value().summary.find("single user") == std::string::npos);
+  // a plain summary that differs from the headline is left alone
+  auto t = parseSynthesis(R"({"headline":"Brute force stopped","summary":"Twelve failures came from one address.","priorities":[],"correlations":[]})", {1});
+  REQUIRE(t.value().summary == "Twelve failures came from one address.");
+  const auto p = buildSynthesisPrompt(SynthesisInput{}, "en", "");
+  REQUIRE(p.system.find("FIRST priority is containment") != std::string::npos);
+}
+
 TEST_CASE("synthesis reply: invented finding ids and malformed correlations are dropped") {
   const std::string reply = R"({"headline":"H","summary":"S",
     "priorities":[{"text":"Fai X","finding_ids":[7,999]}],

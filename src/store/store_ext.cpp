@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 
 #include <algorithm>
+#include <filesystem>
 #include <set>
 
 #include "store/store.h"
@@ -86,6 +87,23 @@ CREATE TABLE IF NOT EXISTS conn_events (
   ts INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_conn_events ON conn_events(target, dest, port, ts);
+CREATE TABLE IF NOT EXISTS exclusions (
+  id INTEGER PRIMARY KEY,
+  kind TEXT NOT NULL,
+  pattern TEXT NOT NULL,
+  target TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (kind, pattern, target)
+);
+CREATE TABLE IF NOT EXISTS acceptances (
+  finding_id INTEGER PRIMARY KEY,
+  accepted_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL DEFAULT 0,
+  note TEXT NOT NULL DEFAULT '',
+  added TEXT NOT NULL DEFAULT '[]'
+);
 )";
 }
 
@@ -424,6 +442,230 @@ Result<std::vector<Store::ConnSeries>> Store::connectionSeries(const std::string
   }
   out.erase(std::remove_if(out.begin(), out.end(), [&](const ConnSeries& s) { return s.times.size() < min_events; }), out.end());
   return out;
+}
+
+// ---- acceptances ------------------------------------------------------------------------------------------------
+
+Result<bool> Store::acceptFinding(int64_t id, int64_t now, const std::string& note, int64_t expires_at) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  auto f = getFinding(id);
+  if (!f) return err(f.error());
+  if (!f.value()) return err("no such finding: " + std::to_string(id));
+  auto before = acceptanceOf(id);
+  if (!before) return err(before.error());
+  // Only what is not in the baseline yet is ours to take out again later.
+  std::vector<Identity> added = before.value() ? before.value()->added : std::vector<Identity>{};
+  for (const auto& d : f.value()->drift) {
+    auto in = inBaseline(f.value()->target, d);
+    if (!in) return err(in.error());
+    if (!in.value() && std::find(added.begin(), added.end(), d) == added.end()) added.push_back(d);
+  }
+  if (auto r = addToBaseline(f.value()->target, f.value()->drift, now); !r) return err(r.error());
+  nlohmann::json aj = nlohmann::json::array();
+  for (const auto& a : added) aj.push_back({{"facet", a.facet}, {"key", a.key}});
+  Stmt u(db_, "UPDATE findings SET status='accepted' WHERE id=?");
+  sqlite3_bind_int64(u.s, 1, id);
+  if (sqlite3_step(u.s) != SQLITE_DONE) return err(std::string("accept finding: ") + sqlite3_errmsg(db_));
+  Stmt a(db_, "INSERT OR REPLACE INTO acceptances(finding_id,accepted_at,expires_at,note,added) VALUES(?,?,?,?,?)");
+  sqlite3_bind_int64(a.s, 1, id);
+  sqlite3_bind_int64(a.s, 2, now);
+  sqlite3_bind_int64(a.s, 3, expires_at);
+  a.text(4, note.substr(0, 500));
+  a.text(5, aj.dump());
+  if (sqlite3_step(a.s) != SQLITE_DONE) return err(std::string("record acceptance: ") + sqlite3_errmsg(db_));
+  return true;
+}
+
+Result<std::optional<Store::Acceptance>> Store::acceptanceOf(int64_t id) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  Stmt q(db_, "SELECT finding_id,accepted_at,expires_at,note,added FROM acceptances WHERE finding_id=?");
+  sqlite3_bind_int64(q.s, 1, id);
+  const int rc = sqlite3_step(q.s);
+  if (rc == SQLITE_DONE) return std::optional<Acceptance>{};
+  if (rc != SQLITE_ROW) return err(std::string("acceptance: ") + sqlite3_errmsg(db_));
+  Acceptance a;
+  a.finding_id = sqlite3_column_int64(q.s, 0);
+  a.accepted_at = sqlite3_column_int64(q.s, 1);
+  a.expires_at = sqlite3_column_int64(q.s, 2);
+  a.note = col(q.s, 3);
+  const auto j = nlohmann::json::parse(col(q.s, 4), nullptr, false);
+  if (j.is_array()) {
+    for (const auto& i : j) if (i.is_object()) a.added.push_back({i.value("facet", ""), i.value("key", "")});
+  }
+  return std::optional<Acceptance>(std::move(a));
+}
+
+Result<size_t> Store::removeFromBaseline(const std::string& target, const std::vector<Identity>& ids) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  size_t n = 0;
+  Stmt d(db_, "DELETE FROM baseline WHERE target=? AND facet=? AND key=?");
+  for (const auto& i : ids) {
+    sqlite3_reset(d.s);
+    d.text(1, target);
+    d.text(2, i.facet);
+    d.text(3, i.key);
+    if (sqlite3_step(d.s) != SQLITE_DONE) return err(std::string("baseline delete: ") + sqlite3_errmsg(db_));
+    n += static_cast<size_t>(sqlite3_changes(db_));
+  }
+  return n;
+}
+
+Result<bool> Store::reopenFinding(int64_t id, int64_t now) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  (void)now;
+  auto f = getFinding(id);
+  if (!f) return err(f.error());
+  if (!f.value()) return err("no such finding: " + std::to_string(id));
+  if (f.value()->status != "accepted") return false;
+  auto a = acceptanceOf(id);
+  if (!a) return err(a.error());
+  if (a.value()) {
+    if (auto r = removeFromBaseline(f.value()->target, a.value()->added); !r) return err(r.error());
+  }
+  Stmt u(db_, "UPDATE findings SET status='open', resolved_at=0 WHERE id=?");
+  sqlite3_bind_int64(u.s, 1, id);
+  if (sqlite3_step(u.s) != SQLITE_DONE) return err(std::string("reopen finding: ") + sqlite3_errmsg(db_));
+  Stmt d(db_, "DELETE FROM acceptances WHERE finding_id=?");
+  sqlite3_bind_int64(d.s, 1, id);
+  sqlite3_step(d.s);
+  Stmt al(db_, "DELETE FROM alerts WHERE finding_id=?");  // it may be reported again: the decision no longer holds
+  sqlite3_bind_int64(al.s, 1, id);
+  sqlite3_step(al.s);
+  return true;
+}
+
+Result<std::vector<int64_t>> Store::reopenExpired(int64_t now) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  std::vector<int64_t> due;
+  {
+    Stmt q(db_, "SELECT finding_id FROM acceptances WHERE expires_at>0 AND expires_at<=?");
+    sqlite3_bind_int64(q.s, 1, now);
+    while (sqlite3_step(q.s) == SQLITE_ROW) due.push_back(sqlite3_column_int64(q.s, 0));
+  }
+  std::vector<int64_t> done;
+  for (int64_t id : due) {
+    auto r = reopenFinding(id, now);
+    if (!r) return err(r.error());
+    done.push_back(id);
+  }
+  return done;
+}
+
+// ---- exclusion filters ------------------------------------------------------------------------------------------
+
+Result<int64_t> Store::addExclusion(const Exclusion& x) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  Stmt u(db_,
+         "INSERT INTO exclusions(kind,pattern,target,note,created_at,expires_at) VALUES(?,?,?,?,?,?) "
+         "ON CONFLICT(kind,pattern,target) DO UPDATE SET note=excluded.note, expires_at=excluded.expires_at");
+  u.text(1, x.kind);
+  u.text(2, x.pattern);
+  u.text(3, x.target);
+  u.text(4, x.note.substr(0, 300));
+  sqlite3_bind_int64(u.s, 5, x.created_at);
+  sqlite3_bind_int64(u.s, 6, x.expires_at);
+  if (sqlite3_step(u.s) != SQLITE_DONE) return err(std::string("add exclusion: ") + sqlite3_errmsg(db_));
+  Stmt q(db_, "SELECT id FROM exclusions WHERE kind=? AND pattern=? AND target=?");
+  q.text(1, x.kind);
+  q.text(2, x.pattern);
+  q.text(3, x.target);
+  if (sqlite3_step(q.s) != SQLITE_ROW) return err("add exclusion: not stored");
+  return static_cast<int64_t>(sqlite3_column_int64(q.s, 0));
+}
+
+Result<bool> Store::deleteExclusion(int64_t id) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  Stmt d(db_, "DELETE FROM exclusions WHERE id=?");
+  sqlite3_bind_int64(d.s, 1, id);
+  if (sqlite3_step(d.s) != SQLITE_DONE) return err(std::string("delete exclusion: ") + sqlite3_errmsg(db_));
+  return sqlite3_changes(db_) > 0;
+}
+
+Result<std::vector<Exclusion>> Store::listExclusions(bool active_only, int64_t now) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  Stmt q(db_, "SELECT id,kind,pattern,target,note,created_at,expires_at FROM exclusions WHERE (?1=0 OR expires_at=0 OR expires_at>?2) ORDER BY kind, pattern, target");
+  sqlite3_bind_int(q.s, 1, active_only ? 1 : 0);
+  sqlite3_bind_int64(q.s, 2, now);
+  std::vector<Exclusion> out;
+  while (sqlite3_step(q.s) == SQLITE_ROW) {
+    Exclusion x;
+    x.id = sqlite3_column_int64(q.s, 0);
+    x.kind = col(q.s, 1);
+    x.pattern = col(q.s, 2);
+    x.target = col(q.s, 3);
+    x.note = col(q.s, 4);
+    x.created_at = sqlite3_column_int64(q.s, 5);
+    x.expires_at = sqlite3_column_int64(q.s, 6);
+    out.push_back(std::move(x));
+  }
+  return out;
+}
+
+Result<size_t> Store::resolveExcluded(const ExclusionSet& set, int64_t now) {
+  if (set.empty()) return static_cast<size_t>(0);
+  auto open = listFindings("open", 200000);
+  if (!open) return err(open.error());
+  std::vector<int64_t> ids;
+  for (const auto& f : open.value()) {
+    if (set.find(f.target, f.rule_id, f.obs_type, f.evidence)) ids.push_back(f.id);
+  }
+  return resolveFindings(ids, now);
+}
+
+// ---- maintenance ------------------------------------------------------------------------------------------------
+
+Result<std::vector<std::pair<std::string, int64_t>>> Store::tableCounts() {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  std::vector<std::string> names;
+  {
+    Stmt q(db_, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+    while (sqlite3_step(q.s) == SQLITE_ROW) names.push_back(col(q.s, 0));
+  }
+  std::vector<std::pair<std::string, int64_t>> out;
+  for (const auto& n : names) {
+    Stmt c(db_, ("SELECT COUNT(*) FROM \"" + n + "\"").c_str());
+    if (sqlite3_step(c.s) == SQLITE_ROW) out.emplace_back(n, sqlite3_column_int64(c.s, 0));
+  }
+  return out;
+}
+
+int64_t Store::fileSize() const {
+  std::error_code ec;
+  if (path_.empty() || path_ == ":memory:") return 0;
+  const auto sz = std::filesystem::file_size(path_, ec);
+  return ec ? 0 : static_cast<int64_t>(sz);
+}
+
+Result<Store::ResetResult> Store::resetAll(bool keep_exclusions, int64_t now) {
+  std::lock_guard<std::recursive_mutex> lock(mu_);
+  ResetResult res;
+  if (!path_.empty() && path_ != ":memory:") {
+    std::string dest = path_ + ".before-reset-" + std::to_string(now);
+    std::string quoted;
+    for (char c : dest) quoted += c == '\'' ? std::string("''") : std::string(1, c);
+    if (auto r = exec(("VACUUM INTO '" + quoted + "'").c_str()); !r) return err("cannot save a copy of the database before the reset (nothing was deleted): " + r.error());
+    res.backup_path = dest;
+  }
+  std::vector<std::string> names;
+  {
+    Stmt q(db_, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+    while (sqlite3_step(q.s) == SQLITE_ROW) names.push_back(col(q.s, 0));
+  }
+  if (auto r = exec("BEGIN IMMEDIATE"); !r) return err(r.error());
+  for (const auto& n : names) {
+    if (keep_exclusions && n == "exclusions") continue;
+    Stmt d(db_, ("DELETE FROM \"" + n + "\"").c_str());
+    if (sqlite3_step(d.s) != SQLITE_DONE) {
+      const std::string m = sqlite3_errmsg(db_);
+      exec("ROLLBACK");
+      return err("reset failed on table " + n + " (nothing was deleted): " + m);
+    }
+    res.rows_deleted += sqlite3_changes(db_);
+  }
+  if (auto r = exec("COMMIT"); !r) return err(r.error());
+  exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  exec("VACUUM");  // gives the disk space back; a failure here only means the file stays larger
+  return res;
 }
 
 }  // namespace agent

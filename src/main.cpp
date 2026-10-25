@@ -66,7 +66,9 @@ void usage() {
                "  --once               run every collector once, store and print the snapshots, exit\n"
                "  --events [--all]     list open findings (all = including accepted)\n"
                "  --event <id>         show one finding in detail\n"
-               "  --accept <id>        accept a finding: its drift becomes part of the baseline\n"
+               "  --accept <id> [--note <text>] [--days <n>]\n"
+               "                       accept a finding as normal: its drift becomes part of the baseline; with --days it is reopened after n days\n"
+               "  --reopen <id>        take an accepted finding back (it is open again and may alert again)\n"
                "  --geo-update         download the offline IP location database (DB-IP City Lite) used by the attack map\n"
                "  --geo-import <file>  build that database from a CSV (or .csv.gz) you downloaded yourself\n"
                "  --geo-status         show the location database in use\n"
@@ -285,6 +287,8 @@ int main(int argc, char** argv) {
   std::string config_path, mode, out_dir, preview_kind, ssh_target, vuln_arg;
   int64_t id_arg = 0;
   bool all = false;
+  std::string note_arg;
+  int64_t days_arg = 0;
   for (int i = 1; i < argc; ++i) {
     const std::string a = argv[i];
     if (a == "--config" && i + 1 < argc) {
@@ -320,7 +324,13 @@ int main(int argc, char** argv) {
       out_dir = argv[++i];  // the file to import
     } else if (a == "--all") {
       all = true;
-    } else if ((a == "--event" || a == "--accept") && i + 1 < argc) {
+    } else if (a == "--note" && i + 1 < argc) {
+      note_arg = argv[++i];
+    } else if (a == "--days" && i + 1 < argc) {
+      const auto v = agent::util::parseUint(argv[++i]);
+      if (!v || *v > 3650) { usage(); return 2; }
+      days_arg = static_cast<int64_t>(*v);
+    } else if ((a == "--event" || a == "--accept" || a == "--reopen") && i + 1 < argc) {
       const auto v = agent::util::parseUint(argv[++i]);
       if (!v) { usage(); return 2; }
       id_arg = static_cast<int64_t>(*v);
@@ -495,9 +505,17 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (mode == "--accept") {
-    auto r = st.acceptFinding(id_arg, nowTs());
+    auto r = st.acceptFinding(id_arg, nowTs(), note_arg, days_arg > 0 ? nowTs() + days_arg * 86400 : 0);
     if (!r) { spdlog::error("{}", r.error()); return 1; }
-    std::cout << "finding " << id_arg << " accepted; its drift was added to the baseline\n";
+    std::cout << "finding " << id_arg << " accepted; its drift was added to the baseline"
+              << (days_arg > 0 ? " (reopened automatically in " + std::to_string(days_arg) + " day(s))" : "") << "\n";
+    return 0;
+  }
+  if (mode == "--reopen") {
+    auto r = st.reopenFinding(id_arg, nowTs());
+    if (!r) { spdlog::error("{}", r.error()); return 1; }
+    if (!r.value()) { std::cerr << "finding " << id_arg << " was not accepted\n"; return 1; }
+    std::cout << "finding " << id_arg << " is open again; what its acceptance had added to the baseline was removed\n";
     return 0;
   }
   if (mode == "--baseline-status" || mode == "--baseline-lock") {

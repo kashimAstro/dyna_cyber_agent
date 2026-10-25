@@ -67,6 +67,46 @@ Result<Synthesis> Reasoner::synthesize(const SynthesisInput& in) {
   return parsed;
 }
 
+Result<AskAnswer> Reasoner::ask(const AskInput& in, const std::string& language) {
+  if (!available()) return err("LLM temporarily disabled after repeated failures");
+  const PromptParts prompt = buildAskPrompt(in, language, opts_.admin_focus);
+  const size_t budget = opts_.context_tokens > static_cast<size_t>(opts_.synthesis_max_tokens) + kPromptMargin
+                            ? opts_.context_tokens - static_cast<size_t>(opts_.synthesis_max_tokens) - kPromptMargin
+                            : 1024;
+  if (prompt.estimated_tokens > budget) return err("too much data for the model context: narrow the period or name one machine");
+
+  ChatRequest req;
+  req.system = prompt.system;
+  req.user = prompt.user;
+  req.schema = askSchema();
+  req.schema_name = "answer";
+  req.max_tokens = opts_.synthesis_max_tokens;
+  req.timeout = opts_.synthesis_timeout;
+
+  Result<ChatResponse> resp = err("not called");
+  for (int attempt = 0; attempt <= opts_.max_retries; ++attempt) {
+    resp = client_.chat(req);
+    if (resp) break;
+    spdlog::warn("LLM question failed (attempt {}/{}): {}", attempt + 1, opts_.max_retries + 1, resp.error());
+    if (attempt < opts_.max_retries) std::this_thread::sleep_for(opts_.retry_delay * (attempt + 1));
+  }
+  if (!resp) {
+    if (++consecutive_failures_ >= opts_.breaker_threshold) {
+      paused_until_ = std::chrono::steady_clock::now() + opts_.breaker_pause;
+      consecutive_failures_ = 0;
+      spdlog::error("LLM unreachable: pausing LLM analysis for {}s", opts_.breaker_pause.count());
+    }
+    return err(resp.error());
+  }
+  consecutive_failures_ = 0;
+  if (resp.value().finish_reason == "length") return err("model reply truncated");
+  std::unordered_set<int64_t> ids(prompt.finding_ids.begin(), prompt.finding_ids.end());
+  auto parsed = parseAskAnswer(resp.value().content, ids);
+  if (!parsed) return err(parsed.error());
+  parsed.value().model = resp.value().model.empty() ? client_.config().model : resp.value().model;
+  return parsed;
+}
+
 bool Reasoner::available() const { return std::chrono::steady_clock::now() >= paused_until_; }
 
 Result<std::vector<Analysis>> Reasoner::analyze(const std::string& target, std::vector<Finding> findings, const nlohmann::json& host_context) {

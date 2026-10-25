@@ -22,7 +22,7 @@ Niente cloud: i dati restano sulle tue macchine.
 | **Oltre le regole** | finding collegati in **incidenti** con cronologia; "spiegato da un aggiornamento"; **gruppi di pari** (cosa esiste su una di cinque macchine identiche); controlli anti-rootkit a **viste incrociate** (processi, moduli, porte, eBPF); forme di messaggi di log mai viste; beaconing, paesi nuovi e picchi di traffico; viaggio impossibile; **liste di minacce** pubbliche confrontate in locale |
 | **Analisi AI** | valuta ogni finding, collega finding correlati (catene d'attacco), scrive **un solo resoconto per mail** senza ripetere le mail precedenti; difese contro la prompt injection |
 | **Mail** | avvisi immediati e digest periodico, HTML moderno (chiaro/scuro) + testo completo, SMTP con retry |
-| **Console web** | pagina responsive: panoramica, finding, CVE, **mappa dark dei tentativi di accesso**, analisi AI mirate, anteprima report |
+| **Console web** | pagina responsive: panoramica, incidenti, finding (**accetta come normale**, con motivo e scadenza facoltativa), CVE, **mappa dark dei tentativi di accesso**, **chiedi all'agente** in italiano o inglese ("cosa è cambiato su web01 da martedì?"), analisi AI mirate, anteprima report, **impostazioni** (filtri di esclusione per pacchetti, porte, utenti...; pause di mail e AI; reset totale con doppia conferma) |
 | **Bersagli** | macchina locale oppure remota via **SSH** con un piccolo gate di sola lettura (nulla da installare di compilato sul bersaglio) |
 
 ## Avvio rapido
@@ -54,7 +54,8 @@ dyna_cyber_agent --config <file> [modalità]
   (nessuna)           demone: raccoglie, analizza, invia mail
   --check             valida configurazione e regole        --once          una raccolta completa e stampa
   --events [--all]    elenca i finding aperti               --event <id>    dettaglio di un finding
-  --accept <id>       accetta un finding (entra in baseline) --baseline-status | --baseline-lock
+  --accept <id> [--note T] [--days N] | --reopen <id>    accetta un finding come normale / riprendilo
+  --baseline-status | --baseline-lock
   --vuln-sync | --vuln-status | --vuln-search <q> | --vuln-check        database CVE
   --llm-ping | --analyze | --llm-prompt                                 modello linguistico
   --report-preview alert|digest|test [--out dir] | --send-test-mail | --notifications
@@ -115,3 +116,7 @@ collaudo e simulazioni sicure (§14), console web e mappa (§15).
 `make ui-check` controlla il JavaScript della console, `make debug` compila in `build-debug/`,
 `make package` produce `.tar.gz` e `.deb`. I test non toccano mai la rete né llama-server: usano trasporti,
 HTTP e SMTP finti.
+
+## Licenza
+
+MIT, vedi [LICENSE](LICENSE).

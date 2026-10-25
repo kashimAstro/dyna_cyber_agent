@@ -14,6 +14,7 @@ struct AnalysisResult {
   std::vector<Finding> fresh;    // findings seen for the first time (to alert on)
   std::vector<Finding> repeats;  // already known and open
   size_t suppressed = 0;         // matched but accepted by the admin
+  size_t excluded = 0;           // matched but covered by an exclusion filter (settings page)
   bool learning = false;
   size_t learned = 0;            // identities added to the baseline in this pass
   size_t resolved = 0;           // open findings whose condition is gone from this (complete) snapshot

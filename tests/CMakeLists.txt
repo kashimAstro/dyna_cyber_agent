@@ -28,6 +28,9 @@ add_executable(agent_tests
   test_logtemplates.cpp
   test_netflow.cpp
   test_enrich.cpp
+  test_accept.cpp
+  test_ask.cpp
+  test_settings.cpp
 )
 target_link_libraries(agent_tests PRIVATE agent_core Catch2::Catch2)
 add_test(NAME agent_tests COMMAND agent_tests)

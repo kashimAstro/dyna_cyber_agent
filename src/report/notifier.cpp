@@ -250,6 +250,8 @@ bool Notifier::digestPass(Outcome& out) {
 Notifier::Outcome Notifier::tick(bool flush) {
   Outcome out;
   if (!enabled()) return out;
+  // "Pause the mails" from the settings page: findings keep accumulating and go out in the first mail after the pause.
+  if (auto p = store_.getMeta("mail_pause_until"); p && p.value() && std::atoll(p.value()->c_str()) > clock_()) return out;
   out.alert_sent = alertPass(flush, out);
   if (!flush) out.digest_sent = digestPass(out);
   return out;

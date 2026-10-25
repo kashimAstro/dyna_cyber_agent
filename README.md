@@ -23,7 +23,7 @@ plain text. No cloud: your data stays on your machines.
 | **Beyond rules** | findings chained into **incidents** with a timeline; "explained by a package update"; **peer groups** (what exists on one of five identical machines); **cross-view** anti-rootkit checks (processes, modules, ports, eBPF); never-seen log message shapes; beaconing, new countries and traffic spikes; impossible travel; public **threat lists** matched locally |
 | **AI analysis** | assesses every finding, links related findings (attack chains), writes **one single report per mail** without repeating earlier mails; defences against prompt injection |
 | **Mail** | immediate alerts and a periodic digest, modern HTML (light/dark) + complete plain text, SMTP with retries |
-| **Web console** | responsive page: overview, findings, CVEs, a **dark map of access attempts**, targeted AI analyses, report preview |
+| **Web console** | responsive page: overview, incidents, findings (**accept as normal**, with a reason and an optional expiry), CVEs, a **dark map of access attempts**, **ask the agent** in plain Italian or English ("what changed on web01 since Tuesday?"), targeted AI analyses, report preview, **settings** (exclusion filters for packages, ports, users…; mail/AI pauses; total reset with double confirmation) |
 | **Targets** | the local machine, or remote machines over **SSH** with a small read-only gate (nothing compiled to install on the target) |
 
 ## Quick start
@@ -55,7 +55,8 @@ dyna_cyber_agent --config <file> [mode]
   (none)              daemon: collects, analyses, sends mail
   --check             validate configuration and rules      --once          one full collection, printed
   --events [--all]    list open findings                    --event <id>    detail of a finding
-  --accept <id>       accept a finding (enters the baseline) --baseline-status | --baseline-lock
+  --accept <id> [--note T] [--days N] | --reopen <id>    accept a finding as normal / take it back
+  --baseline-status | --baseline-lock
   --vuln-sync | --vuln-status | --vuln-search <q> | --vuln-check        CVE database
   --llm-ping | --analyze | --llm-prompt                                 language model
   --report-preview alert|digest|test [--out dir] | --send-test-mail | --notifications
@@ -116,3 +117,7 @@ CVE/CWE vulnerabilities (§13), acceptance testing and safe simulations (§14), 
 `make test` runs the suite (zero warnings required: `-Wall -Wextra -Wpedantic -Wshadow -Wconversion`),
 `make ui-check` checks the console's JavaScript, `make debug` builds into `build-debug/`, `make package` produces
 `.tar.gz` and `.deb`. The tests never touch the network or llama-server: they use fake transports, HTTP and SMTP.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

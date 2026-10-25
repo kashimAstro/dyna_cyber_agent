@@ -1,10 +1,12 @@
 #include "llm/analysis.h"
 
 #include <algorithm>
+#include <cctype>
 
 #include <nlohmann/json.hpp>
 
 #include "core/util.h"
+#include "llm/ask.h"
 #include "llm/synthesis.h"
 
 namespace agent {
@@ -20,6 +22,44 @@ std::string cleanText(const nlohmann::json& j, size_t max_len) {
     s = util::toValidUtf8(s) + "...";  // a cut multi-byte sequence becomes '?' instead of invalid UTF-8
   }
   return std::string(util::trim(s));
+}
+
+// The model's output grammar cuts a string at its maximum length, even in the middle of a word. A summary that does
+// not end like a sentence is cut back to the last complete one.
+std::string endAtSentence(std::string s) {
+  const auto ends = [](char c) { return c == '.' || c == '!' || c == '?'; };
+  if (s.empty() || ends(s.back()) || (s.size() > 3 && s.compare(s.size() - 3, 3, "...") == 0)) return s;
+  size_t cut = std::string::npos;
+  for (size_t i = 0; i + 1 < s.size(); ++i) {
+    if (ends(s[i]) && (s[i + 1] == ' ' || s[i + 1] == '\n')) cut = i;
+  }
+  if (cut == std::string::npos || cut < s.size() / 3) return s;  // no sentence worth keeping: leave the text alone
+  return s.substr(0, cut + 1);
+}
+
+// Leading sentence of `summary` that only repeats the headline.
+std::string dropRepeatedHeadline(const std::string& summary, const std::string& headline) {
+  const auto norm = [](const std::string& t) {
+    std::string o;
+    for (unsigned char c : t) {
+      if (std::isalnum(c)) o += static_cast<char>(std::tolower(c));
+    }
+    return o;
+  };
+  const std::string h = norm(headline);
+  if (h.size() < 20) return summary;
+  size_t end = std::string::npos;  // a full stop followed by a space: the dots inside "1.1.1.1" do not end a sentence
+  for (size_t i = 0; i + 1 < summary.size(); ++i) {
+    if ((summary[i] == '.' || summary[i] == '!' || summary[i] == '?') && std::isspace(static_cast<unsigned char>(summary[i + 1]))) {
+      end = i;
+      break;
+    }
+  }
+  if (end == std::string::npos) return summary;
+  const std::string first = norm(summary.substr(0, end + 1));
+  if (first.find(h) == std::string::npos && h.find(first) == std::string::npos) return summary;
+  std::string rest(util::trim(summary.substr(end + 1)));
+  return rest.empty() ? summary : rest;
 }
 
 std::vector<std::string> cleanList(const nlohmann::json& j, size_t max_items, size_t max_len) {
@@ -104,7 +144,7 @@ Result<Synthesis> parseSynthesis(const std::string& text, const std::unordered_s
   if (j.is_discarded() || !j.is_object()) return err("model reply is not a JSON object");
   Synthesis s;
   s.headline = cleanText(j.value("headline", nlohmann::json()), 300);
-  s.summary = cleanText(j.value("summary", nlohmann::json()), 1800);
+  s.summary = dropRepeatedHeadline(endAtSentence(cleanText(j.value("summary", nlohmann::json()), 1800)), s.headline);
   if (s.headline.empty() || s.summary.empty()) return err("model reply misses headline or summary");
   const auto validIds = [&](const nlohmann::json& arr) {
     std::vector<int64_t> ids;
@@ -138,6 +178,23 @@ Result<Synthesis> parseSynthesis(const std::string& text, const std::unordered_s
     }
   }
   return s;
+}
+
+Result<AskAnswer> parseAskAnswer(const std::string& text, const std::unordered_set<int64_t>& allowed_ids) {
+  const auto j = nlohmann::json::parse(text, nullptr, false);
+  if (j.is_discarded() || !j.is_object()) return err("model reply is not a JSON object");
+  AskAnswer a;
+  a.answer = endAtSentence(cleanText(j.value("answer", nlohmann::json()), 2000));
+  a.data_gaps = endAtSentence(cleanText(j.value("data_gaps", nlohmann::json()), 400));
+  if (a.answer.empty()) return err("model reply has no answer");
+  if (j.contains("finding_ids") && j["finding_ids"].is_array()) {
+    for (const auto& id : j["finding_ids"]) {
+      if (id.is_number_integer() && allowed_ids.count(id.get<int64_t>()) && a.finding_ids.size() < 12 &&
+          std::find(a.finding_ids.begin(), a.finding_ids.end(), id.get<int64_t>()) == a.finding_ids.end())
+        a.finding_ids.push_back(id.get<int64_t>());
+    }
+  }
+  return a;
 }
 
 }  // namespace agent

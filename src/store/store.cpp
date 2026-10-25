@@ -205,6 +205,7 @@ Result<std::unique_ptr<Store>> Store::open(const std::string& path) {
     return err("cannot open database '" + path + "': " + m);
   }
   std::unique_ptr<Store> st(new Store(db));
+  st->path_ = path;
   sqlite3_busy_timeout(db, 5000);
   for (const char* sql : {"PRAGMA journal_mode=WAL", "PRAGMA synchronous=NORMAL", "PRAGMA foreign_keys=ON", kSchema, storeExtSchema()}) {
     if (auto r = st->exec(sql); !r) return err(r.error());
@@ -438,16 +439,20 @@ Result<std::vector<Finding>> Store::listFindings(const std::string& status, size
   return out;
 }
 
-Result<bool> Store::acceptFinding(int64_t id, int64_t now) {
+Result<std::vector<Finding>> Store::findingsActive(int64_t from, int64_t to, const std::string& target, size_t limit) {
   std::lock_guard<std::recursive_mutex> lock(mu_);
-  auto f = getFinding(id);
-  if (!f) return err(f.error());
-  if (!f.value()) return err("no such finding: " + std::to_string(id));
-  if (auto r = addToBaseline(f.value()->target, f.value()->drift, now); !r) return err(r.error());
-  Stmt u(db_, "UPDATE findings SET status='accepted' WHERE id=?");
-  sqlite3_bind_int64(u.s, 1, id);
-  if (sqlite3_step(u.s) != SQLITE_DONE) return err(std::string("accept finding: ") + sqlite3_errmsg(db_));
-  return true;
+  Stmt q(db_, (std::string("SELECT ") + kFindingCols +
+               " FROM findings WHERE last_seen>=?1 AND first_seen<=?2 AND (?3='' OR target=?3) AND rule_id != 'LOG-050' "
+               "ORDER BY severity DESC, last_seen DESC LIMIT ?4").c_str());
+  sqlite3_bind_int64(q.s, 1, from);
+  sqlite3_bind_int64(q.s, 2, to);
+  q.text(3, target);
+  sqlite3_bind_int64(q.s, 4, static_cast<int64_t>(limit));
+  std::vector<Finding> out;
+  int rc;
+  while ((rc = sqlite3_step(q.s)) == SQLITE_ROW) out.push_back(findingFromRow(q.s));
+  if (rc != SQLITE_DONE) return err(std::string("findings in period: ") + sqlite3_errmsg(db_));
+  return out;
 }
 
 Result<std::vector<Finding>> Store::listUnassessed(size_t limit) {

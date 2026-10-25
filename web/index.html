@@ -96,6 +96,43 @@ td{padding:7px 8px;border-top:1px solid var(--line);vertical-align:top;overflow-
 iframe.pv{width:100%;height:70vh;border:1px solid var(--line);border-radius:10px;background:#fff}
 #login{max-width:420px;margin:12vh auto;padding:0 16px}
 .hide{display:none!important}
+.btn.danger{background:var(--s4);color:#fff}
+:root[data-theme=dark] .btn.danger{color:#0b1020}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .btn.danger{color:#0b1020}}
+.dangercard{border-color:color-mix(in srgb,var(--s4) 55%,var(--line))}
+.modal{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(2,6,23,.62);backdrop-filter:blur(3px);animation:fade .18s ease-out}
+.modal .box{width:min(540px,100%);max-height:calc(100vh - 32px);overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 64px rgba(2,6,23,.5);animation:pop .24s cubic-bezier(.2,.9,.3,1.15)}
+.modal .head{display:flex;gap:14px;align-items:center;padding:20px 22px 12px}
+.modal .head h2{margin:0;font-size:19px}
+.modal .head p{margin:2px 0 0;font-size:12.5px;color:var(--mut)}
+.modal .ico{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:22px;font-weight:800;flex:none;background:color-mix(in srgb,var(--s4) 15%,var(--panel));color:var(--s4)}
+.modal .ico.ok{background:color-mix(in srgb,var(--ok) 15%,var(--panel));color:var(--ok)}
+.modal .steps{display:flex;gap:6px;padding:0 22px}
+.modal .steps i{flex:1;height:4px;border-radius:2px;background:var(--line);transition:background .25s}
+.modal .steps i.on{background:var(--s4)}
+.modal .body{padding:14px 22px 4px;font-size:14px}
+.modal .body p{margin:0 0 10px}
+.modal .foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px 20px;flex-wrap:wrap}
+.modal ul.del{margin:6px 0 12px;padding:10px 12px;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;background:var(--panel2);border:1px solid var(--line);border-radius:10px}
+.modal ul.del li{font-size:13px;color:var(--mut)}
+.modal ul.del b{color:var(--txt);font-variant-numeric:tabular-nums}
+.modal label.chk{display:flex;gap:10px;align-items:flex-start;margin:8px 0;cursor:pointer;font-size:13.5px}
+.modal label.chk input{margin-top:3px}
+.modal .confirmbox{border:1px dashed var(--s4);border-radius:10px;padding:14px;margin:6px 0 10px;background:color-mix(in srgb,var(--s4) 6%,var(--panel));text-align:center}
+.modal input.word{width:100%;margin-top:10px;padding:11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font:700 17px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:4px;text-align:center;text-transform:uppercase}
+.modal input.word:focus{outline:2px solid var(--s4);outline-offset:1px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:70;background:var(--txt);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;box-shadow:0 8px 24px rgba(2,6,23,.35);animation:pop .2s ease-out;max-width:calc(100vw - 32px)}
+@keyframes fade{from{opacity:0}}
+@keyframes pop{from{opacity:0;transform:translate(var(--tx,0),8px) scale(.97)}}
+.toast{--tx:-50%}
+.setgrid{display:grid;gap:14px}
+.kv select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;color:inherit}
+.xform{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:8px;margin:10px 0}
+.xform input,.xform select{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0;width:100%}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--line)}
+.pill.on{color:var(--ok);border-color:var(--ok)}
+.pill.off{color:var(--s3);border-color:var(--s3)}
+@media (max-width:520px){.modal ul.del{grid-template-columns:1fr}.modal .foot .btn{flex:1}}
 @media (max-width:640px){.bar{flex-wrap:wrap}.brand small{display:none}.kpi .n{font-size:26px}}
 </style>
 </head>
@@ -331,14 +368,182 @@ const EN={
   " nella ":" in ",
   "Entra":"Sign in",
   "Esci":"Log out",
-  "Tema chiaro/scuro":"Light/dark theme"
+  "Accetta come normali i selezionati (":"Accept selected as normal (",
+  "Riapri i selezionati":"Reopen selected",
+  "Motivo (facoltativo ma consigliato), es. \"server di backup, attivita' pianificata\"":"Reason (optional but recommended), e.g. \"backup server, scheduled job\"",
+  "per sempre":"for good",
+  "per 7 giorni":"for 7 days",
+  "per 30 giorni":"for 30 days",
+  "per 90 giorni":"for 90 days",
+  "Accetta come normale: ":"Accept as normal: ",
+  "Non compariranno piu' tra i finding aperti ne' nelle mail. Cio' che hanno di nuovo (processi, porte, utenti, cron...) entra nella baseline come normale. Se la stessa cosa ricompare resta zitta. Puoi riaprirli quando vuoi; con una scadenza si riaprono da soli e tornano a segnalare.":"They will no longer appear among the open findings or in mails. What is new in them (processes, ports, users, cron...) joins the baseline as normal, and the same thing coming back stays silent. You can reopen them at any time; with an expiry they reopen by themselves and report again.",
+  " accettati.":" accepted.",
+  " non riusciti: ":" failed: ",
+  "Accettato come normale":"Accepted as normal",
+  ", si riapre il ":", reopens on ",
+  ", per sempre":", for good",
+  "Motivo: ":"Reason: ",
+  "Riapri":"Reopen",
+  "Decisione":"Decision",
+  "E' un comportamento atteso su questa macchina? Accettalo come normale e non verra' piu' segnalato.":"Is this expected on this machine? Accept it as normal and it will not be reported again.",
+  "Accetta come normale...":"Accept as normal...",
+  "Accetta":"Accept",
+  "Chiedi all'agente":"Ask the agent",
+  "Il modello sta leggendo i dati dell'agente: puo' volerci da qualche secondo a qualche minuto...":"The model is reading the agent's data: it can take from a few seconds to a few minutes...",
+  "Cosa i dati non dicono: ":"What the data does not say: ",
+  "Finding citati":"Findings cited",
+  "Periodo: ":"Period: ",
+  "macchine: ":"machines: ",
+  " finding nel periodo":" findings in the period",
+  " (al modello ne sono stati dati ":" (the model was given ",
+  " cambi di pacchetti":" package changes",
+  "macchine indicate nella domanda (o tutte)":"machines named in the question (or all)",
+  "periodo indicato nella domanda (o 7 giorni)":"period named in the question (or 7 days)",
+  "ultime 6 ore":"last 6 hours",
+  "ultime 24 ore":"last 24 hours",
+  "ultimi 7 giorni":"last 7 days",
+  "ultimi 30 giorni":"last 30 days",
+  "Es. \"Cosa e' cambiato su web01 da martedi?\" - \"Ci sono stati accessi da paesi nuovi nelle ultime 48 ore?\" - \"What happened on db01 yesterday?\"":"E.g. \"What changed on web01 since Tuesday?\" - \"Were there logins from new countries in the last 48 hours?\" - \"Cosa e' successo su db01 ieri?\"",
+  "Cosa e' cambiato su ":"What changed on ",
+  " da martedi?":" since Tuesday?",
+  "Quali sono i finding piu' gravi di oggi?":"What are today's most serious findings?",
+  "Ci sono stati aggiornamenti di pacchetti nelle ultime 24 ore?":"Were any packages updated in the last 24 hours?",
+  "Scrivi una domanda in italiano o in inglese. L'agente capisce il periodo (\"da martedi\", \"ieri\", \"ultime 36 ore\") e la macchina dal testo, raccoglie quello che sa nel suo database e lo da al modello: la risposta si basa solo su questi dati, che vedi riassunti sotto. Non esegue nulla sulle macchine. Ogni domanda e' indipendente: ripeti macchina e periodo.":"Write a question in Italian or English. The agent works out the period (\"since Tuesday\", \"yesterday\", \"last 36 hours\") and the machine from the text, collects what it knows in its own database and gives that to the model: the answer rests only on this data, summarised below it. It runs nothing on the machines. Each question stands alone: repeat the machine and the period.",
+  "Chiedi":"Ask",
+  "Tema chiaro/scuro":"Light/dark theme",
+  " (non raggiungibile da questa console)":" (not reachable from this console)",
+  " filtri importati":" filters imported",
+  " finding chiusi":" findings closed",
+  " giorni di istantanee":" days of snapshots",
+  " l'ora":" per hour",
+  " per confermare.":" to confirm.",
+  " righe cancellate":" rows deleted",
+  " scartati":" rejected",
+  ", da ":", from ",
+  ". Puoi cancellarla quando vuoi.":". You can delete it whenever you like.",
+  "3 giorni":"3 days",
+  ": cancella tutto cio' che l'agente ha imparato e trovato (finding, baseline, storico, mappa, incidenti) per ricominciare da zero. Prima salva una copia del database. Richiede una doppia conferma.":": deletes everything the agent has learned and found (findings, baseline, history, map, incidents) to start from scratch. It saves a copy of the database first. Needs a double confirmation.",
+  "Aggiorna la panoramica":"Refresh the overview",
+  "Aggiungi filtro":"Add filter",
+  "Anche i filtri di esclusione verranno cancellati.":"The exclusion filters will be deleted too.",
+  "Annulla":"Cancel",
+  "CVE":"CVE",
+  "Cancella tutto":"Delete everything",
+  "Conservazione":"Retention",
+  "Continua":"Continue",
+  "Copia del database prima del reset: ":"Copy of the database before the reset: ",
+  "Copia di sicurezza e cancellazione in corso...":"Backing up and deleting...",
+  "Cosa contiene il database":"What the database holds",
+  "Dai filtri non passa nulla: cio' che coprono non genera piu' finding (e quelli aperti si chiudono), ma l'agente continua a leggerlo e la baseline lo impara. Puoi limitarli a una macchina e farli scadere. Rimuovendo un filtro, cio' che copriva torna a essere analizzato.":"Nothing gets through a filter: what it covers no longer produces findings (and open ones close), but the agent keeps reading it and the baseline learns it. You can limit filters to one machine and make them expire. Removing a filter makes what it covered analysed again.",
+  "Database dell'agente":"Agent database",
+  "Destinatari":"Recipients",
+  "Disattiva una regola: non produce piu' finding. Es. LOG-050 oppure LOG-05*":"Switch a rule off: it no longer produces findings. E.g. LOG-050 or LOG-05*",
+  "Durante la pausa i finding continuano a essere raccolti e partono nella prima mail dopo la ripresa: non si perde nulla. Utile durante una manutenzione.":"During the pause findings are still collected and go out in the first mail after resuming: nothing is lost. Handy during maintenance.",
+  "Esporta (JSON)":"Export (JSON)",
+  "File non valido: ":"Invalid file: ",
+  "Filtri di esclusione":"Exclusion filters",
+  "Filtro aggiunto: ":"Filter added: ",
+  "Filtro rimosso":"Filter removed",
+  "Ho capito: finding, baseline e storico spariranno e dalla console non si torna indietro.":"I understand: findings, baseline and history will disappear and cannot be brought back from the console.",
+  "I filtri di esclusione verranno mantenuti.":"The exclusion filters will be kept.",
+  "Il database e' gia' vuoto.":"The database is already empty.",
+  "Importa (JSON)":"Import (JSON)",
+  "Impostazioni":"Settings",
+  "Indietro":"Back",
+  "Indirizzo o rete":"Address or network",
+  "Informazioni":"Information",
+  "L'agente continua a funzionare e ricomincia ad apprendere. Per avere anche la memoria dei processi pulita riavvia il servizio.":"The agent keeps running and starts learning again. Restart the service as well to clear its in-memory state.",
+  "La configurazione (mail, modello, bersagli, soglie) si cambia nel file YAML: questa pagina non la modifica.":"The configuration (mail, model, targets, thresholds) is changed in the YAML file: this page does not edit it.",
+  "Lingua":"Language",
+  "Macchina":"Machine",
+  "Macchine":"Machines",
+  "Mail di avviso da":"Alert mails from",
+  "Mail di avviso e riepilogo":"Alert and digest mails",
+  "Mail in pausa per ":"Mail paused for ",
+  "Mail riattivate":"Mail resumed",
+  "Mantieni i filtri di esclusione":"Keep the exclusion filters",
+  "Modello AI":"AI model",
+  "Motivo":"Reason",
+  "Motivo (facoltativo)":"Reason (optional)",
+  "Nessun filtro: l'agente analizza tutto.":"No filters: the agent analyses everything.",
+  "Nessuna vulnerabilita' per questo pacchetto (nome, anche con *). Es. linux-*":"No vulnerabilities for this package (name, wildcards allowed). E.g. linux-*",
+  "Pacchetto":"Package",
+  "Passo 1 di 2":"Step 1 of 2",
+  "Passo 2 di 2":"Step 2 of 2",
+  "Pausa ":"Pause ",
+  "Pause":"Pauses",
+  "Percorso":"Path",
+  "Porta in ascolto":"Listening port",
+  "Preferenza salvata in questo browser":"Preference saved in this browser",
+  "Preferenze di questa console":"Preferences of this console",
+  "Programma":"Program",
+  "Regola":"Rule",
+  "Reset completato":"Reset complete",
+  "Reset totale":"Total reset",
+  "Reset totale...":"Total reset...",
+  "Restano: i database pubblici (CVE, liste di minacce, posizioni), la configurazione, le chiavi e i log. Prima del reset l'agente salva una copia del database accanto all'originale. Dopo il reset la baseline ricomincia: nel periodo di apprendimento le regole di novita' restano mute.":"Kept: the public databases (CVE, threat lists, locations), the configuration, the keys and the logs. Before the reset the agent saves a copy of the database next to the original. After the reset the baseline starts over: during the learning period the novelty rules stay quiet.",
+  "Riattiva":"Resume",
+  "Riepilogo":"Digest",
+  "Rimuovere il filtro? Cio' che copriva tornera' a essere analizzato alla prossima raccolta.":"Remove the filter? What it covered will be analysed again at the next collection.",
+  "Rimuovi":"Remove",
+  "Riprendi":"Resume",
+  "Scheda iniziale":"Start tab",
+  "Scrivi la parola ":"Type the word ",
+  "Si salvano solo in questo browser: non cambiano l'agente.":"They are saved in this browser only: they do not change the agent.",
+  "Sospendi":"Pause",
+  "Sospendila per liberare il modello (ad esempio mentre lo usi per altro). I finding restano in attesa di valutazione. Le analisi e le domande che lanci tu dalla console funzionano comunque.":"Pause it to free the model (for example while you use it for something else). Findings wait for assessment. The analyses and questions you start from the console still work.",
+  "Stai per cancellare tutto cio' che questa installazione ha imparato e trovato, per ricominciare da zero.":"You are about to delete everything this installation has learned and found, to start from scratch.",
+  "Ultima conferma":"Final confirmation",
+  "Un account di servizio le cui azioni sono normali (accessi, sudo, cron, chiavi). Mai root. Es. backup oppure svc-*":"A service account whose actions are normal (logins, sudo, cron, keys). Never root. E.g. backup or svc-*",
+  "Un file o una cartella da non analizzare. Es. /opt/app/ oppure /srv/data/*.log. Non intere cartelle di sistema":"A file or folder not to analyse. E.g. /opt/app/ or /srv/data/*.log. Not whole system folders",
+  "Un indirizzo o una rete tua (ufficio, monitoraggio): niente finding e fuori dalla mappa. Es. 203.0.113.7 oppure 192.168.1.0/24":"An address or network of yours (office, monitoring): no findings and off the map. E.g. 203.0.113.7 or 192.168.1.0/24",
+  "Un programma noto: percorso o nome. Es. /usr/bin/backup-agent oppure backup-*":"A known program: path or name. E.g. /usr/bin/backup-agent or backup-*",
+  "Un servizio che tieni apposta. Es. 8080, tcp/22, udp/5353, 8000-8100":"A service you keep on purpose. E.g. 8080, tcp/22, udp/5353, 8000-8100",
+  "Una CVE di cui accetti il rischio. Es. CVE-2026-1234 oppure CVE-2024-*":"A CVE whose risk you accept. E.g. CVE-2026-1234 or CVE-2024-*",
+  "Utente":"User",
+  "Validita'":"Valid",
+  "Valore":"Value",
+  "Valutazione AI dei nuovi finding":"AI assessment of new findings",
+  "Valutazione AI riattivata":"AI assessment resumed",
+  "Valutazione AI sospesa":"AI assessment paused",
+  "Versione":"Version",
+  "Zona pericolosa":"Danger zone",
+  "accessi registrati":"recorded logins",
+  "analisi AI":"AI analyses",
+  "attiva":"active",
+  "attive":"active",
+  "cambi di pacchetti":"package changes",
+  "connessioni registrate":"recorded connections",
+  "decisioni \"accettato come normale\"":"\"accepted as normal\" decisions",
+  "disattivate":"disabled",
+  "disattivato":"disabled",
+  "elementi della baseline":"baseline items",
+  "filtri di esclusione":"exclusion filters",
+  "finding":"findings",
+  "fino al ":"until ",
+  "giorni di attivita' sulla mappa":"days of activity on the map",
+  "in pausa fino al ":"paused until ",
+  "incidenti":"incidents",
+  "istantanee delle raccolte":"collection snapshots",
+  "mail nello storico":"mails in the history",
+  "nessuno (le mail sono disattivate)":"none (mail is disabled)",
+  "ogni ":"every ",
+  "ogni 15 secondi":"every 15 seconds",
+  "ogni 30 secondi":"every 30 seconds",
+  "ogni 5 minuti":"every 5 minutes",
+  "ogni giorno alle ":"every day at ",
+  "ogni minuto":"every minute",
+  "scaduto":"expired",
+  "sospesa":"paused",
+  "tutte le macchine":"all machines"
 };
 const T=s=>LANG==="en"&&EN[s]||s;
 const SEV=["info","low","medium","high","critical"];
 const SEVIT={info:"info",low:T("basso"),medium:T("medio"),high:T("alto"),critical:T("critico")};
 const SEVCOL={4:"var(--s4)",3:"var(--s3)",2:"var(--s2)",1:"var(--s1)",0:"var(--s0)"};
-const TABS=[["overview",T("Panoramica")],["incidents",T("Incidenti")],["findings","Finding"],["vulns",T("Vulnerabilita'")],["map",T("Mappa")],["ai",T("Analisi AI")],["report","Report"],["mail","Mail"],["status",T("Stato")]];
-let token=null,tab=(TABS.map(t=>t[0]).includes(location.hash.slice(1))?location.hash.slice(1):"overview"),overview=null,timer=null,selected=new Set();
+const TABS=[["overview",T("Panoramica")],["incidents",T("Incidenti")],["ask",T("Chiedi all'agente")],["findings","Finding"],["vulns",T("Vulnerabilita'")],["map",T("Mappa")],["ai",T("Analisi AI")],["report","Report"],["mail","Mail"],["status",T("Stato")],["settings",T("Impostazioni")]];
+function pref(k,d){try{const v=localStorage.getItem("pref_"+k);return v===null?d:v;}catch(e){return d;}}
+let token=null,tab=(TABS.map(t=>t[0]).includes(location.hash.slice(1))?location.hash.slice(1):(TABS.map(t=>t[0]).includes(pref("start","overview"))?pref("start","overview"):"overview")),overview=null,timer=null,selected=new Set();
 
 function h(tag,attrs,...kids){
   const e=document.createElement(tag);
@@ -388,8 +593,7 @@ async function enter(t){
   $("login").classList.add("hide");$("app").classList.remove("hide");
   $("hostline").textContent=overview.host+" - v"+overview.version;
   renderNav();show(tab);
-  clearInterval(timer);
-  timer=setInterval(()=>{if(!document.hidden&&tab==="overview")show("overview",true);},30000);
+  armTimer();
 }
 function renderNav(){
   const n=$("nav");n.replaceChildren(...TABS.map(([k,l])=>h("button",{"aria-current":k===tab?"true":null,onclick:()=>show(k)},l)));
@@ -399,7 +603,7 @@ async function show(k,quiet){
   const v=$("view");
   if(!quiet)v.replaceChildren(h("p",{class:"mut"},h("span",{class:"spin"}),T("Caricamento...")));
   try{
-    const content=await ({overview:vOverview,incidents:vIncidents,findings:vFindings,vulns:vVulns,map:vMap,ai:vAi,report:vReport,mail:vMail,status:vStatus}[k])();
+    const content=await ({overview:vOverview,incidents:vIncidents,ask:vAsk,findings:vFindings,vulns:vVulns,map:vMap,ai:vAi,report:vReport,mail:vMail,status:vStatus,settings:vSettings}[k])();
     v.replaceChildren(content);
   }catch(e){if(e.message!=="401")v.replaceChildren(h("div",{class:"err"},T("Errore: ")+e.message));}
 }
@@ -455,7 +659,8 @@ async function vOverview(){
 
 /* ---------- finding ---------- */
 let fq={q:"",severity:"",status:"open",target:"",collector:"",vulns:"no"};
-function updSel(){const b=$("selbtn");if(b){b.disabled=!selected.size;b.textContent=T("Analizza con AI i selezionati (")+selected.size+")";}}
+function updSel(){const b=$("selbtn");if(b){b.disabled=!selected.size;b.textContent=T("Analizza con AI i selezionati (")+selected.size+")";}
+  const c=$("accbtn");if(c){c.disabled=!selected.size;c.textContent=T("Accetta come normali i selezionati (")+selected.size+")";}}
 async function vFindings(){
   const p=new URLSearchParams();for(const[k,v]of Object.entries(fq))if(v)p.set(k,v);p.set("limit","300");
   const d=await api("/api/findings?"+p);
@@ -471,8 +676,9 @@ async function vFindings(){
       sel("collector",[["",T("ogni collector")],...["processes","network","users","logs","persistence","system","files","integrity","packages","vulns"].map(c=>[c,c])]),
       sel("vulns",[["no",T("senza CVE")],["",T("con CVE")]])),
     h("div",{class:"row",style:"margin-bottom:10px"},h("span",{class:"mut"},d.total+T(" risultati")+(d.total>d.items.length?T(" (primi ")+d.items.length+")":"")),h("span",{class:"sp"}),
+      fq.status==="accepted"?h("button",{class:"btn sec",id:"reobtn",onclick:()=>reopenSelected()},T("Riapri i selezionati")):h("button",{class:"btn sec",id:"accbtn",disabled:!selected.size,onclick:()=>acceptDialog([...selected])},T("Accetta come normali i selezionati (")+selected.size+")"),
       overview.llm.usable?h("button",{class:"btn sec",id:"selbtn",disabled:!selected.size,onclick:()=>analyzeDialog([...selected])},T("Analizza con AI i selezionati (")+selected.size+")"):null),
-    h("div",{class:"card"},d.items.length?h("div",{class:"list"},d.items.map(f=>findingRow(f,{select:overview.llm.usable}))):h("p",{class:"mut"},T("Nessun risultato."))));
+    h("div",{class:"card"},d.items.length?h("div",{class:"list"},d.items.map(f=>findingRow(f,{select:true}))):h("p",{class:"mut"},T("Nessun risultato."))));
 }
 
 /* ---------- vulnerabilita' ---------- */
@@ -520,6 +726,33 @@ function flat(o,prefix,out){
   if(typeof o==="object"){for(const[k,v]of Object.entries(o))flat(v,prefix?prefix+"."+k:k,out);return out;}
   out.push([prefix,String(o)]);return out;
 }
+async function refreshAll(){try{overview=await api("/api/overview");await show(tab,true);}catch(e){}}
+function acceptDialog(ids,after){
+  const note=h("textarea",{placeholder:T("Motivo (facoltativo ma consigliato), es. \"server di backup, attivita' pianificata\"")});
+  const days=h("select",null,[["0",T("per sempre")],["7",T("per 7 giorni")],["30",T("per 30 giorni")],["90",T("per 90 giorni")]].map(([v,l])=>h("option",{value:v},l)));
+  const out=h("div");
+  openDrawer([h("div",{class:"card"},h("h2",null,T("Accetta come normale: ")+ids.length+T(" finding")),
+    h("p",{class:"mut"},T("Non compariranno piu' tra i finding aperti ne' nelle mail. Cio' che hanno di nuovo (processi, porte, utenti, cron...) entra nella baseline come normale. Se la stessa cosa ricompare resta zitta. Puoi riaprirli quando vuoi; con una scadenza si riaprono da soli e tornano a segnalare.")),
+    note,h("div",{class:"filters"},days),
+    h("p",null,h("button",{class:"btn",onclick:async()=>{
+      try{
+        const r=await api("/api/findings/accept",{method:"POST",body:{ids,note:note.value,days:+days.value}});
+        selected.clear();
+        out.replaceChildren(h("p",null,r.accepted.length+T(" accettati."),r.failed.length?" "+r.failed.length+T(" non riusciti: ")+r.failed.map(x=>"#"+x.id+" "+x.error).join("; "):""));
+        refreshAll();
+        if(after)after();
+      }catch(e){if(e.message!=="401")out.replaceChildren(h("div",{class:"err"},e.message));}
+    }},T("Accetta")))),out]);
+}
+async function reopenIds(ids,after){
+  try{
+    const r=await api("/api/findings/reopen",{method:"POST",body:{ids}});
+    selected.clear();
+    refreshAll();
+    if(after)after(r);
+  }catch(e){if(e.message!=="401")alert(e.message);}
+}
+function reopenSelected(){if(selected.size)reopenIds([...selected]);}
 async function openFinding(id){
   openDrawer([h("p",{class:"mut"},h("span",{class:"spin"}),T("Caricamento..."))]);
   let f;try{f=await api("/api/findings/"+id);}catch(e){if(e.message!=="401")openDrawer([h("div",{class:"err"},e.message)]);return;}
@@ -542,6 +775,13 @@ async function openFinding(id){
     f.drift.length?h("div",null,h("b",null,T("Non presente nella baseline")),f.drift.map(d=>h("div",null,chip(d.facet),h("span",{class:"mono"},d.key)))):null),
     h("div",{class:"card",style:"margin-top:12px"},h("h3",null,T("Evidenze")),h("dl",{class:"kv mono"},flat(f.evidence,"").slice(0,80).map(([k,v])=>[h("dt",null,k),h("dd",null,v.length>400?v.slice(0,400)+"...":v)]))),
     f.assessment?assessmentView(f.assessment):null,
+    f.status==="accepted"?h("div",{class:"card",style:"margin-top:12px"},h("h3",null,T("Accettato come normale")),
+      h("p",null,f.acceptance?ts(f.acceptance.accepted_at)+(f.acceptance.expires_at?T(", si riapre il ")+ts(f.acceptance.expires_at):T(", per sempre")):""),
+      f.acceptance&&f.acceptance.note?h("p",{style:"white-space:pre-line"},h("b",null,T("Motivo: ")),f.acceptance.note):null,
+      h("p",null,h("button",{class:"btn sec",onclick:()=>reopenIds([f.id],()=>openFinding(f.id))},T("Riapri")))):
+    h("div",{class:"card",style:"margin-top:12px"},h("h3",null,T("Decisione")),
+      h("p",{class:"mut"},T("E' un comportamento atteso su questa macchina? Accettalo come normale e non verra' piu' segnalato.")),
+      h("p",null,h("button",{class:"btn sec",onclick:()=>acceptDialog([f.id],()=>openFinding(f.id))},T("Accetta come normale...")))),
     overview.llm.usable?h("div",{class:"card",style:"margin-top:12px"},h("h3",null,T("Analisi mirata con l'AI")),
       h("textarea",{id:"q1",placeholder:T("Domanda facoltativa, es. \"Questo processo e' compatibile con un'attivita' di backup?\"")}),
       h("p",null,h("button",{class:"btn",onclick:()=>runAnalysis({ids:[f.id],question:$("q1").value},out,()=>openFinding(f.id))},T("Analizza")))):null,
@@ -587,6 +827,231 @@ async function vAi(){
       h("div",{class:"filters"},target,coll,sev),q,
       h("p",null,h("button",{class:"btn",onclick:()=>runAnalysis({filter:{target:target.value,collector:coll.value,min_severity:sev.value},question:q.value},out)},T("Avvia analisi")))),
     out);
+}
+
+/* ---------- impostazioni ---------- */
+function setPref(k,v){try{localStorage.setItem("pref_"+k,v);}catch(e){}}
+function toast(msg){const t=h("div",{class:"toast",role:"status"},msg);document.body.appendChild(t);setTimeout(()=>t.remove(),4200);}
+function armTimer(){clearInterval(timer);const s=+pref("refresh","30");if(s>0)timer=setInterval(()=>{if(!document.hidden&&tab==="overview")show("overview",true);},s*1000);}
+const XK={
+  rule:[T("Regola"),T("Disattiva una regola: non produce piu' finding. Es. LOG-050 oppure LOG-05*"),"LOG-050"],
+  package:[T("Pacchetto"),T("Nessuna vulnerabilita' per questo pacchetto (nome, anche con *). Es. linux-*"),"linux-*"],
+  cve:[T("CVE"),T("Una CVE di cui accetti il rischio. Es. CVE-2026-1234 oppure CVE-2024-*"),"CVE-2026-1234"],
+  port:[T("Porta in ascolto"),T("Un servizio che tieni apposta. Es. 8080, tcp/22, udp/5353, 8000-8100"),"8080"],
+  user:[T("Utente"),T("Un account di servizio le cui azioni sono normali (accessi, sudo, cron, chiavi). Mai root. Es. backup oppure svc-*"),"backup"],
+  ip:[T("Indirizzo o rete"),T("Un indirizzo o una rete tua (ufficio, monitoraggio): niente finding e fuori dalla mappa. Es. 203.0.113.7 oppure 192.168.1.0/24"),"192.168.1.0/24"],
+  path:[T("Percorso"),T("Un file o una cartella da non analizzare. Es. /opt/app/ oppure /srv/data/*.log. Non intere cartelle di sistema"),"/opt/app/"],
+  process:[T("Programma"),T("Un programma noto: percorso o nome. Es. /usr/bin/backup-agent oppure backup-*"),"/usr/bin/backup-agent"]
+};
+function durationSelect(){return h("select",null,[["0",T("per sempre")],["7",T("per 7 giorni")],["30",T("per 30 giorni")],["90",T("per 90 giorni")]].map(([v,l])=>h("option",{value:v},l)));}
+function exclusionForm(s){
+  const kind=h("select",null,s.kinds.map(k=>h("option",{value:k},XK[k]?XK[k][0]:k)));
+  const pat=h("input",{type:"text",maxlength:"200",autocomplete:"off",placeholder:XK[s.kinds[0]][2]});
+  const help=h("p",{class:"mut",style:"margin:0"},XK[s.kinds[0]][1]);
+  kind.addEventListener("change",()=>{const k=s.kinds[kind.selectedIndex];pat.placeholder=XK[k][2];help.textContent=XK[k][1];});
+  const target=h("select",null,[["",T("tutte le macchine")],...s.targets.map(t=>[t.name,t.name])].map(([v,l])=>h("option",{value:v},l)));
+  const note=h("input",{type:"text",maxlength:"300",placeholder:T("Motivo (facoltativo)")});
+  const days=durationSelect();
+  const out=h("div");
+  const add=async()=>{
+    out.replaceChildren();
+    try{
+      const r=await api("/api/settings/exclusions",{method:"POST",body:{kind:s.kinds[kind.selectedIndex],pattern:pat.value,target:target.value,note:note.value,days:+days.value}});
+      toast(T("Filtro aggiunto: ")+r.pattern+(r.closed?" - "+r.closed+T(" finding chiusi"):""));
+      refreshAll();
+    }catch(e){if(e.message!=="401")out.replaceChildren(h("div",{class:"err"},e.message));}
+  };
+  pat.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();add();}});
+  return h("div",null,h("div",{class:"xform"},kind,pat,target,note,days,h("button",{class:"btn",onclick:add},T("Aggiungi filtro"))),help,out);
+}
+async function removeExclusion(x){
+  if(!confirm(T("Rimuovere il filtro? Cio' che copriva tornera' a essere analizzato alla prossima raccolta.")))return;
+  try{await api("/api/settings/exclusions/delete",{method:"POST",body:{id:x.id}});toast(T("Filtro rimosso"));refreshAll();}catch(e){if(e.message!=="401")alert(e.message);}
+}
+function exclusionTable(s){
+  if(!s.exclusions.length)return h("p",{class:"mut"},T("Nessun filtro: l'agente analizza tutto."));
+  return h("div",{class:"scroll"},h("table",null,
+    h("thead",null,h("tr",null,[T("Tipo"),T("Valore"),T("Macchina"),T("Motivo"),T("Validita'"),""].map(x=>h("th",null,x)))),
+    h("tbody",null,s.exclusions.map(x=>h("tr",null,
+      h("td",null,chip(XK[x.kind]?XK[x.kind][0]:x.kind)),h("td",{class:"mono"},x.pattern),h("td",null,x.target||T("tutte")),h("td",null,x.note),
+      h("td",null,x.expires_at?(x.active?T("fino al ")+ts(x.expires_at):h("span",{class:"pill off"},T("scaduto"))):T("per sempre")),
+      h("td",null,h("button",{class:"btn sec",onclick:()=>removeExclusion(x)},T("Rimuovi"))))))));
+}
+function exportExclusions(s){
+  const items=s.exclusions.filter(x=>x.active).map(x=>({kind:x.kind,pattern:x.pattern,target:x.target,note:x.note,expires_at:x.expires_at}));
+  const a=h("a",{href:URL.createObjectURL(new Blob([JSON.stringify({items},null,2)],{type:"application/json"})),download:"dyna_cyber_agent-filtri.json"});
+  document.body.appendChild(a);a.click();a.remove();
+}
+async function importExclusions(file){
+  try{
+    const j=JSON.parse(await file.text());
+    const items=Array.isArray(j)?j:j.items;
+    const r=await api("/api/settings/exclusions/import",{method:"POST",body:{items}});
+    toast(r.added+T(" filtri importati")+(r.rejected.length?", "+r.rejected.length+T(" scartati"):""));
+    if(r.rejected.length)alert(r.rejected.map(x=>"#"+(x.index+1)+": "+x.error).join("\n"));
+    refreshAll();
+  }catch(e){if(e.message!=="401")alert(T("File non valido: ")+e.message);}
+}
+async function setPause(body,msg){try{await api("/api/settings/pause",{method:"POST",body});toast(msg);refreshAll();}catch(e){if(e.message!=="401")alert(e.message);}}
+function pauseCard(s){
+  const mp=s.pause.mail_until;
+  const hrs=[[1,"1 h"],[4,"4 h"],[24,"24 h"],[72,T("3 giorni")]];
+  return h("div",{class:"card"},h("h3",null,T("Pause")),
+    h("div",{class:"row",style:"margin-bottom:8px"},h("b",null,T("Mail di avviso e riepilogo")),
+      h("span",{class:"pill "+(mp?"off":"on")},mp?T("in pausa fino al ")+ts(mp):T("attive"))),
+    h("p",{class:"mut",style:"margin:0 0 8px"},T("Durante la pausa i finding continuano a essere raccolti e partono nella prima mail dopo la ripresa: non si perde nulla. Utile durante una manutenzione.")),
+    h("div",{class:"row"},hrs.map(([n,l])=>h("button",{class:"btn sec",onclick:()=>setPause({mail_hours:n},T("Mail in pausa per ")+l)},T("Pausa ")+l)),
+      mp?h("button",{class:"btn",onclick:()=>setPause({mail_hours:0},T("Mail riattivate"))},T("Riprendi")):null),
+    h("hr",{style:"border:0;border-top:1px solid var(--line);margin:14px 0"}),
+    h("div",{class:"row",style:"margin-bottom:8px"},h("b",null,T("Valutazione AI dei nuovi finding")),
+      h("span",{class:"pill "+(s.pause.llm_paused?"off":"on")},s.pause.llm_paused?T("sospesa"):T("attiva"))),
+    h("p",{class:"mut",style:"margin:0 0 8px"},T("Sospendila per liberare il modello (ad esempio mentre lo usi per altro). I finding restano in attesa di valutazione. Le analisi e le domande che lanci tu dalla console funzionano comunque.")),
+    h("button",{class:"btn sec",onclick:()=>setPause({llm_paused:!s.pause.llm_paused},s.pause.llm_paused?T("Valutazione AI riattivata"):T("Valutazione AI sospesa"))},s.pause.llm_paused?T("Riattiva"):T("Sospendi")));
+}
+function prefsCard(){
+  const sel=(key,def,opts,after)=>h("select",{onchange:e=>{setPref(key,e.target.value);if(after)after();toast(T("Preferenza salvata in questo browser"));}},opts.map(([v,l])=>h("option",{value:v,selected:String(pref(key,def))===String(v)},l)));
+  return h("div",{class:"card"},h("h3",null,T("Preferenze di questa console")),
+    h("p",{class:"mut",style:"margin:0 0 10px"},T("Si salvano solo in questo browser: non cambiano l'agente.")),
+    h("dl",{class:"kv",style:"align-items:center"},
+      h("dt",null,T("Aggiorna la panoramica")),h("dd",null,sel("refresh","30",[["0",T("mai")],["15",T("ogni 15 secondi")],["30",T("ogni 30 secondi")],["60",T("ogni minuto")],["300",T("ogni 5 minuti")]],armTimer)),
+      h("dt",null,T("Scheda iniziale")),h("dd",null,sel("start","overview",TABS.filter(t=>t[0]!=="settings").map(([k,l])=>[k,l])))));
+}
+function infoCard(s){
+  const i=s.info,a=i.alerting,rows=i.db.tables.filter(t=>t.rows>0);
+  const size=i.db.size_bytes>1048576?(i.db.size_bytes/1048576).toFixed(1)+" MB":Math.round(i.db.size_bytes/1024)+" KB";
+  return h("div",{class:"card"},h("h3",null,T("Informazioni")),
+    h("dl",{class:"kv"},
+      h("dt",null,T("Versione")),h("dd",null,i.version),
+      h("dt",null,T("Lingua")),h("dd",null,i.language==="en"?"English":"Italiano"),
+      h("dt",null,T("Macchine")),h("dd",null,s.targets.map(t=>chip(t.name+" ("+t.transport+(t.group?", "+t.group:"")+")"))),
+      h("dt",null,T("Conservazione")),h("dd",null,i.retention_days+T(" giorni di istantanee")),
+      h("dt",null,T("Mail di avviso da")),h("dd",null,SEVIT[a.min_severity]||a.min_severity,", max "+a.max_per_hour+T(" l'ora")),
+      h("dt",null,T("Riepilogo")),h("dd",null,a.digest_enabled?(a.digest_at?T("ogni giorno alle ")+a.digest_at:T("ogni ")+Math.round(a.digest_every_s/3600)+" h")+T(", da ")+(SEVIT[a.digest_min_severity]||a.digest_min_severity):T("disattivato")),
+      h("dt",null,T("Destinatari")),h("dd",null,a.recipients.length?a.recipients.join(", "):T("nessuno (le mail sono disattivate)")),
+      h("dt",null,T("Modello AI")),h("dd",null,i.llm.enabled?(i.llm.url+(i.llm.model?" - "+i.llm.model:"")+(i.llm.usable?"":T(" (non raggiungibile da questa console)"))):T("disattivato")),
+      h("dt",null,T("Vulnerabilita'")),h("dd",null,i.vuln_enabled?T("attive"):T("disattivate")),
+      h("dt",null,T("Database dell'agente")),h("dd",{class:"mono"},i.db.path+" ("+size+")")),
+    h("p",{class:"mut",style:"margin:10px 0 0"},T("La configurazione (mail, modello, bersagli, soglie) si cambia nel file YAML: questa pagina non la modifica.")),
+    rows.length?h("details",{style:"margin-top:8px"},h("summary",{style:"cursor:pointer"},T("Cosa contiene il database")),
+      h("dl",{class:"kv mono",style:"margin-top:8px"},rows.map(t=>[h("dt",null,t.table),h("dd",null,t.rows)]))):null);
+}
+async function vSettings(){
+  const s=await api("/api/settings");
+  const file=h("input",{type:"file",accept:"application/json,.json",class:"hide",onchange:e=>{if(e.target.files[0])importExclusions(e.target.files[0]);e.target.value="";}});
+  return h("div",null,h("h2",null,T("Impostazioni")),
+    h("div",{class:"setgrid"},
+      h("div",{class:"card"},h("h3",null,T("Filtri di esclusione")),
+        h("p",{class:"mut",style:"margin:0 0 6px"},T("Dai filtri non passa nulla: cio' che coprono non genera piu' finding (e quelli aperti si chiudono), ma l'agente continua a leggerlo e la baseline lo impara. Puoi limitarli a una macchina e farli scadere. Rimuovendo un filtro, cio' che copriva torna a essere analizzato.")),
+        exclusionForm(s),exclusionTable(s),
+        h("div",{class:"row",style:"margin-top:12px"},
+          h("button",{class:"btn sec",disabled:!s.exclusions.length,onclick:()=>exportExclusions(s)},T("Esporta (JSON)")),
+          h("button",{class:"btn sec",onclick:()=>file.click()},T("Importa (JSON)")),file)),
+      pauseCard(s),prefsCard(),infoCard(s),
+      h("div",{class:"card dangercard"},h("h3",{style:"color:var(--s4)"},T("Zona pericolosa")),
+        h("p",null,h("b",null,T("Reset totale")),T(": cancella tutto cio' che l'agente ha imparato e trovato (finding, baseline, storico, mappa, incidenti) per ricominciare da zero. Prima salva una copia del database. Richiede una doppia conferma.")),
+        h("button",{class:"btn danger",onclick:()=>resetDialog(s)},T("Reset totale...")))));
+}
+function resetDialog(s){
+  const labels=[["findings",T("finding")],["snapshots",T("istantanee delle raccolte")],["baseline",T("elementi della baseline")],["analyses",T("analisi AI")],["notifications",T("mail nello storico")],
+    ["incidents",T("incidenti")],["source_days",T("giorni di attivita' sulla mappa")],["pkg_events",T("cambi di pacchetti")],["login_history",T("accessi registrati")],["conn_events",T("connessioni registrate")],
+    ["acceptances",T("decisioni \"accettato come normale\"")],["exclusions",T("filtri di esclusione")]];
+  const rows=Object.fromEntries(s.info.db.tables.map(t=>[t.table,t.rows]));
+  let step=1,keep=false,ack=false,word="",busy=false,result=null,failure="";
+  const bg=h("div",{class:"modal",role:"dialog","aria-modal":"true","aria-labelledby":"rtitle"});
+  const onkey=e=>{if(e.key==="Escape")close();};
+  function close(){if(busy)return;bg.remove();document.removeEventListener("keydown",onkey);if(result)refreshAll();}
+  document.addEventListener("keydown",onkey);
+  bg.addEventListener("mousedown",e=>{if(e.target===bg)close();});
+  async function run(){
+    busy=true;failure="";render();
+    try{result=await api("/api/settings/reset",{method:"POST",body:{confirm:"RESET",keep_exclusions:keep}});step=3;}
+    catch(e){if(e.message==="401"){bg.remove();return;}failure=e.message;}
+    busy=false;render();
+  }
+  function render(){
+    const steps=h("div",{class:"steps"},[1,2].map(n=>h("i",{class:step>=n&&step<3?"on":""})));
+    let head,body,foot;
+    if(step===1){
+      const list=labels.filter(([k])=>rows[k]>0&&!(keep&&k==="exclusions"));
+      head=h("div",{class:"head"},h("div",{class:"ico"},"!"),h("div",null,h("h2",{id:"rtitle"},T("Reset totale")),h("p",null,T("Passo 1 di 2"))));
+      body=h("div",{class:"body"},
+        h("p",null,T("Stai per cancellare tutto cio' che questa installazione ha imparato e trovato, per ricominciare da zero.")),
+        list.length?h("ul",{class:"del"},list.map(([k,l])=>h("li",null,h("b",null,rows[k])," ",l))):h("p",{class:"mut"},T("Il database e' gia' vuoto.")),
+        h("p",{class:"mut"},T("Restano: i database pubblici (CVE, liste di minacce, posizioni), la configurazione, le chiavi e i log. Prima del reset l'agente salva una copia del database accanto all'originale. Dopo il reset la baseline ricomincia: nel periodo di apprendimento le regole di novita' restano mute.")),
+        h("label",{class:"chk"},h("input",{type:"checkbox",checked:keep,onchange:e=>{keep=e.target.checked;render();}}),h("span",null,T("Mantieni i filtri di esclusione"))),
+        h("label",{class:"chk"},h("input",{type:"checkbox",checked:ack,onchange:e=>{ack=e.target.checked;render();}}),h("span",null,T("Ho capito: finding, baseline e storico spariranno e dalla console non si torna indietro."))));
+      foot=h("div",{class:"foot"},h("button",{class:"btn sec",onclick:close},T("Annulla")),h("button",{class:"btn danger",disabled:!ack,onclick:()=>{step=2;word="";render();}},T("Continua")));
+    }else if(step===2){
+      head=h("div",{class:"head"},h("div",{class:"ico"},"!!"),h("div",null,h("h2",{id:"rtitle"},T("Ultima conferma")),h("p",null,T("Passo 2 di 2"))));
+      body=h("div",{class:"body"},
+        h("div",{class:"confirmbox"},h("div",null,T("Scrivi la parola "),h("b",null,"RESET"),T(" per confermare.")),
+          h("input",{class:"word",type:"text",autocomplete:"off",spellcheck:"false",value:word,disabled:busy,"aria-label":"RESET",oninput:e=>{word=e.target.value.trim().toUpperCase();const b=$("rgo");if(b)b.disabled=word!=="RESET"||busy;},
+            onkeydown:e=>{if(e.key==="Enter"&&word==="RESET"&&!busy)run();}})),
+        busy?h("p",null,h("span",{class:"spin"}),T("Copia di sicurezza e cancellazione in corso...")):null,
+        failure?h("div",{class:"err"},failure):null,
+        h("p",{class:"mut"},keep?T("I filtri di esclusione verranno mantenuti."):T("Anche i filtri di esclusione verranno cancellati.")));
+      foot=h("div",{class:"foot"},h("button",{class:"btn sec",disabled:busy,onclick:()=>{step=1;render();}},T("Indietro")),
+        h("button",{class:"btn danger",id:"rgo",disabled:word!=="RESET"||busy,onclick:run},T("Cancella tutto")));
+    }else{
+      head=h("div",{class:"head"},h("div",{class:"ico ok"},"\u2713"),h("div",null,h("h2",{id:"rtitle"},T("Reset completato")),h("p",null,result.rows_deleted+T(" righe cancellate"))));
+      body=h("div",{class:"body"},
+        result.backup_path?h("p",null,T("Copia del database prima del reset: "),h("span",{class:"mono"},result.backup_path),T(". Puoi cancellarla quando vuoi.")):null,
+        h("p",{class:"mut"},T("L'agente continua a funzionare e ricomincia ad apprendere. Per avere anche la memoria dei processi pulita riavvia il servizio.")));
+      foot=h("div",{class:"foot"},h("button",{class:"btn",onclick:close},T("Chiudi")));
+    }
+    const box=h("div",{class:"box"},head,step<3?steps:null,body,foot);
+    bg.replaceChildren(box);
+    const w=bg.querySelector("input.word");if(w)w.focus();
+  }
+  document.body.appendChild(bg);render();
+}
+
+/* ---------- chiedi all'agente ---------- */
+let askLog=[],askBusy=false;
+function askEntry(e){
+  const a=e.res;
+  return h("div",{class:"card",style:"margin-top:12px"},
+    h("div",{class:"row"},h("b",null,e.q)),
+    e.pending?h("p",null,h("span",{class:"spin"}),T("Il modello sta leggendo i dati dell'agente: puo' volerci da qualche secondo a qualche minuto...")):
+    e.err?h("div",{class:"err"},e.err):
+    h("div",null,
+      h("p",{style:"white-space:pre-line"},a.answer),
+      a.data_gaps?h("p",{class:"mut"},T("Cosa i dati non dicono: ")+a.data_gaps):null,
+      a.findings.length?h("div",null,h("b",null,T("Finding citati")),h("div",{class:"list"},a.findings.map(f=>h("div",{class:"item",onclick:()=>openFinding(f.id)},badge(f.severity),
+        h("div",{class:"sp"},h("div",{class:"t"},h("span",{class:"mut"},"#"+f.id+"  "),f.title),h("div",{class:"s"},f.target+(f.status!=="open"?" - "+f.status:""))))))):null,
+      h("div",{class:"s mut",style:"margin-top:8px"},T("Periodo: ")+a.period.label+" | "+T("macchine: ")+a.machines.join(", ")+" | "+a.counts.findings_active_in_period+T(" finding nel periodo")+
+        (a.findings_total>a.findings_shown?T(" (al modello ne sono stati dati ")+a.findings_shown+")":"")+" | "+a.counts.package_changes+T(" cambi di pacchetti")+" | "+a.model)));
+}
+function renderAsk(){const o=$("askout");if(o)o.replaceChildren(...askLog.map(askEntry));const b=$("askgo");if(b)b.disabled=askBusy;}
+async function submitAsk(){
+  const qEl=$("askq"),q=qEl.value.trim();
+  if(!q||askBusy)return;
+  const body={question:q};
+  if($("askt").value)body.target=$("askt").value;
+  if($("askp").value)body.hours=+$("askp").value;
+  const e={q,pending:true};
+  askLog.unshift(e);askBusy=true;qEl.value="";renderAsk();
+  try{
+    const j=await api("/api/ask",{method:"POST",body});
+    const r=await pollJob(j.job);
+    if(r.state==="error")e.err=r.error;else e.res=r.result;
+  }catch(x){if(x.message==="401")return;e.err=x.message;}
+  e.pending=false;askBusy=false;renderAsk();
+}
+async function vAsk(){
+  if(!overview.llm.usable)return h("div",{class:"card"},h("h2",null,T("Chiedi all'agente")),h("p",{class:"mut"},T("Il modello non e' configurato (llm.enabled: false).")));
+  const target=h("select",{id:"askt"},[["",T("macchine indicate nella domanda (o tutte)")],...overview.targets.map(t=>[t.name,t.name])].map(([v,l])=>h("option",{value:v},l)));
+  const period=h("select",{id:"askp"},[["",T("periodo indicato nella domanda (o 7 giorni)")],["6",T("ultime 6 ore")],["24",T("ultime 24 ore")],["168",T("ultimi 7 giorni")],["720",T("ultimi 30 giorni")]].map(([v,l])=>h("option",{value:v},l)));
+  const q=h("textarea",{id:"askq",maxlength:"600",placeholder:T("Es. \"Cosa e' cambiato su web01 da martedi?\" - \"Ci sono stati accessi da paesi nuovi nelle ultime 48 ore?\" - \"What happened on db01 yesterday?\""),
+    onkeydown:e=>{if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){e.preventDefault();submitAsk();}}});
+  const examples=[T("Cosa e' cambiato su ")+(overview.targets[0]?overview.targets[0].name:"web01")+T(" da martedi?"),T("Quali sono i finding piu' gravi di oggi?"),T("Ci sono stati aggiornamenti di pacchetti nelle ultime 24 ore?"),"What changed since yesterday?"];
+  return h("div",null,h("h2",null,T("Chiedi all'agente")),
+    h("div",{class:"card"},
+      h("p",{class:"mut"},T("Scrivi una domanda in italiano o in inglese. L'agente capisce il periodo (\"da martedi\", \"ieri\", \"ultime 36 ore\") e la macchina dal testo, raccoglie quello che sa nel suo database e lo da al modello: la risposta si basa solo su questi dati, che vedi riassunti sotto. Non esegue nulla sulle macchine. Ogni domanda e' indipendente: ripeti macchina e periodo.")),
+      q,h("div",{class:"filters"},target,period),
+      h("p",null,h("button",{class:"btn",id:"askgo",onclick:submitAsk},T("Chiedi")),h("span",{class:"mut"},"  Ctrl+Invio")),
+      h("div",{class:"row"},examples.map(x=>h("button",{class:"btn sec",onclick:()=>{$("askq").value=x;$("askq").focus();}},x)))),
+    h("div",{id:"askout"},...askLog.map(askEntry)));
 }
 
 /* ---------- incidenti ---------- */

@@ -56,6 +56,14 @@ sudo apt install ./dyna-cyber-agent_0.9.0_amd64.deb
 Il `.deb` crea l'utente `dyna_cyber_agent`, le cartelle, copia le regole e una configurazione di esempio in
 `/etc/dyna_cyber_agent/` (senza mai sovrascrivere file esistenti) e **non avvia** nulla: vedi §10.
 
+Se il file e' nella tua home, `apt` stampa un avviso: lo scaricamento "e' eseguito come root, ma non in una sandbox,
+poiche' l'utente `_apt` non ha accesso al file". E' innocuo (apt legge solo un file locale) e sparisce installando da una
+cartella leggibile da tutti (`cp dyna-cyber-agent_*.deb /tmp/ && sudo apt install /tmp/dyna-cyber-agent_*.deb`).
+Se apt termina con un errore *dopo* la riga "Configurazione di dyna-cyber-agent", controlla cosa e' stato installato prima
+di ripetere: `dpkg -s dyna-cyber-agent | grep Status` deve dire `install ok installed` e `ls /etc/dyna_cyber_agent` deve
+mostrare `agent.yaml`, `rules` e `keys`. In quel caso il pacchetto e' a posto (l'errore viene da un hook di un altro
+pacchetto che apt esegue alla fine); se dice `half-configured`, esegui `sudo dpkg --configure -a` e leggi l'output.
+
 ---
 
 ## 2. Avvio rapido (monitorare questa macchina)
@@ -98,7 +106,8 @@ targets:
 | `--once` | esegue ogni collector una volta, salva, analizza, stampa snapshot e nuovi finding; se c'e' LLM/mail li usa subito |
 | `--events [--all]` | elenca i finding aperti (`--all` include quelli accettati) |
 | `--event <id>` | dettaglio di un finding: evidenze, cosa manca alla baseline, valutazione dell'LLM |
-| `--accept <id>` | "questo e' normale": lo marca accettato e aggiunge il suo drift alla baseline |
+| `--accept <id> [--note <testo>] [--days <n>]` | "questo e' normale": lo marca accettato e aggiunge il suo drift alla baseline; la nota registra il perche', `--days` fa scadere la decisione (il finding si riapre e torna a segnalare). Lo stesso si fa dalla console (§16.13) |
+| `--reopen <id>` | riprende un finding accettato: cio' che la decisione aveva aggiunto alla baseline viene tolto e il finding torna aperto (§16.13) |
 | `--baseline-status` | per ogni target: LEARNING o ENFORCING, inizio e fine dell'apprendimento e numero di elementi appresi |
 | `--baseline-lock` | termina subito la fase di apprendimento di tutti i target |
 | `--analyze` | fa valutare all'LLM i finding aperti che non hanno ancora una valutazione |
@@ -630,6 +639,12 @@ diverse viene ora ignorato con un avviso nel log) e che non giri una seconda ist
    Il modello riceve anche i riassunti delle ultime mail inviate con l'istruzione di **non ripeterli**: dice solo cio' che
    e' nuovo o cambiato. Le vulnerabilita' vi compaiono al massimo in due frasi. Se il modello non e' raggiungibile la
    mail parte comunque, con una nota al posto della sintesi.
+   La sintesi e' di al massimo quattro frasi brevi e non ripete il titolo; se il testo del modello arriva tagliato viene
+   accorciato all'ultima frase completa. I numeri sono riferiti al soggetto giusto (i tentativi contro un account
+   inesistente non sono tentativi contro uno reale), le priorita' sono al massimo quattro e senza duplicati, e quando un
+   attaccante e' entrato (login riuscito dopo dei fallimenti, o da una posizione impossibile) la **prima priorita' e' il
+   contenimento**: chiudere le sessioni dell'account, cambiare password e chiavi, bloccare l'indirizzo. E' un'istruzione
+   al modello, non un controllo: un modello piccolo potrebbe ignorarla.
 3. **Incidenti** — quando i finding si concatenano (§16.2): titolo con le fasi, periodo, indirizzi e account in comune e una
    **cronologia**; i tre membri piu' gravi mantengono una scheda completa, gli altri vivono solo nella cronologia.
 4. **Finding di sicurezza** — le schede dettagliate (evidenze, valutazione AI del singolo finding, azioni consigliate). Un
@@ -990,6 +1005,7 @@ sono nomi di host, righe di comando dei processi e indirizzi (`--redact` non bas
 | J | Robustezza | VM | lascia girare 24 h; prova a spegnere SMTP, llama-server, un bersaglio SSH; `kill -9` e riavvio | nessun crash; log chiari; nessuna mail duplicata |
 | K | Console e mappa | qualsiasi | §15: apri la console web; `--geo-update`; fai qualche login simulato | tutte le schede si caricano; la mappa posiziona gli indirizzi pubblici |
 | L | Analisi avanzate | macchina/e di prova | §16.11: una simulazione per analisi, dopo `--baseline-lock`; `--incidents`, `--intel-update` | ogni finding compare come descritto; `crossview` tace su una macchina pulita |
+| M | Decisioni e domande | macchina di prova + llama-server | §16.12 (attacco simulato), §16.13 (accetta / riapri), §16.14 (chiedi all'agente), §16.15 (filtri, pause, reset) | compaiono la mappa e l'incidente; un finding accettato resta zitto e una scadenza lo riapre; la risposta cita finding veri e mostra il suo periodo |
 
 **B - cosa guardare.** Con `collectors: [processes, network, users, logs, persistence, system, packages]` (senza `files`
 e `integrity`, lenti, al primo giro). Il primo `--once` e' in *apprendimento*: scattano solo regole assolute (es.
@@ -1142,15 +1158,19 @@ Cosa trovi:
   in rete" (§16.3).
 * **Mappa** — mappa scura (offline) di tutti gli indirizzi che hanno tentato un accesso alle macchine controllate:
   vedi §15.1.
+* **Chiedi all'agente** — una domanda libera in italiano o in inglese ("cosa e' cambiato su web01 da martedi?"): §16.14.
+* **Impostazioni** — filtri di esclusione (pacchetti, porte, utenti, indirizzi, percorsi, regole, CVE), pause di mail e AI, preferenze della console e **reset totale** con doppia conferma: §16.15.
 * **Analisi AI** — scegli target, collector e gravita' minima, fai una domanda libera; le valutazioni vengono salvate.
 * **Report** — anteprima (HTML + TXT, scaricabili) di digest o avviso, con o senza la sintesi AI. **Non invia nulla.**
 * **Mail** e **Stato** — storico degli invii e salute dei collector.
 
 Sicurezza: ogni richiesta alle API richiede il token (`Authorization: Bearer`); la pagina e' servita con CSP rigida e i
 dati provenienti dalle macchine analizzate sono sempre inseriti come testo, mai come HTML. La console e' in sola lettura
-sulle macchine analizzate; le uniche scritture sono nel database dell'agente (le valutazioni AI richieste da te).
-Le analisi usano llama-server come il resto dell'agente (`llm.enabled: true`); una alla volta, in coda. La console non
-offre "accetta in baseline" ne' "invia questo report": restano da riga di comando, essendo decisioni di sicurezza.
+sulle macchine analizzate; le uniche scritture sono nel database dell'agente (le valutazioni AI richieste da te e le tue
+decisioni di accettare un finding come normale o di riaprirlo: §16.13). Le analisi e le domande usano llama-server come il
+resto dell'agente (`llm.enabled: true`); una alla volta, in coda. La console non offre "invia questo report": resta da
+riga di comando. Accettare e' una decisione di sicurezza, quindi e' protetta come il resto: serve il token e ogni
+accettazione finisce nel log dell'agente e nel database con la sua nota e l'ora.
 
 ### 15.1 Mappa dei tentativi di accesso
 
@@ -1506,5 +1526,198 @@ Fallo solo su una **macchina di prova** (§14.4), dopo `--baseline-lock` (tutte 
 | 16.7 | un ciclo che si connette ogni 60 s a un server esterno di prova (`while true; do curl -s https://example.org >/dev/null; sleep 60; done`) dopo la baseline | `NET-030` dopo ~10–15 minuti |
 | 16.8 | un login SSH da un'uscita VPN in un altro paese poco dopo uno dal tuo (serve il database geo) | `LOG-060` / `LOG-061` |
 | 16.9 | `--intel-update`, poi connettiti a un indirizzo di una lista (prendine uno da `<state_dir>/intel/firehol_level1.list`; apri solo una connessione TCP, es. `nc -w2 <ip> 80`) | `TI-002` |
+
+---
+
+### 16.12 Simulare un attacco da un altro paese (mappa e incidente)
+
+Solo su una **macchina di prova**, mai in produzione. Le righe qui sotto scrivono soltanto testo nel log della macchina
+di prova: nessuna connessione parte verso gli indirizzi usati. Serve prima `--geo-update`, altrimenti la mappa non ha
+coordinate.
+
+```bash
+ATT=1.1.1.1        # indirizzo pubblico in un altro paese (Australia); gli intervalli riservati/di documentazione non si localizzano
+VICTIM=mario       # un utente che esiste sulla macchina di prova (non root)
+
+# 1. brute force: 12 fallimenti (soglia: 8 in 10 minuti)
+for i in $(seq 1 12); do
+  logger -i -p auth.info -t sshd "Failed password for invalid user admin from $ATT port $((40000+i)) ssh2"
+done
+sleep 70           # un ciclo del collector `logs` (30 s)
+
+# 2. l'attaccante entra con un account vero dopo aver fallito
+logger -i -p auth.info -t sshd "Failed password for $VICTIM from $ATT port 41000 ssh2"
+logger -i -p auth.info -t sshd "Accepted password for $VICTIM from $ATT port 41001 ssh2"
+sleep 70
+
+# 3. lo stesso utente da un secondo paese poco dopo (viaggio impossibile)
+logger -i -p auth.info -t sshd "Accepted publickey for $VICTIM from 80.67.172.162 port 50000 ssh2: RSA SHA256:abc"
+```
+
+Cosa dovresti vedere:
+
+* **Mappa:** un punto per indirizzo, anche con un solo tentativo (la mappa e' alimentata da ogni indirizzo che ha toccato la
+  macchina, non solo da quelli sopra la soglia di una regola).
+* **Finding:** il brute force, il login dopo i fallimenti e `LOG-060` (e `LOG-061` per un paese nuovo).
+* **Un solo incidente** (`--incidents`, scheda *Incidenti* della console; l'aggiornamento gira ogni 20 s) perche' i finding
+  condividono indirizzo e account, da almeno due regole diverse. `root` e gli indirizzi privati o di documentazione non
+  collegano mai i finding. La mail mostra l'incidente con la sua cronologia.
+* Per aggiungere una corrispondenza con le liste di minacce scegli l'indirizzo dell'attaccante da
+  `<state_dir>/intel/blocklist_de_ssh.list`: il login diventa anche `TI-003` (critico) e fa salire l'incidente.
+
+Se invece vuoi un attacco vero dall'estero, fai 10–15 tentativi SSH sbagliati con un utente inesistente da una VPN o da
+una VPS in un altro paese, solo contro la macchina di prova; controlla quale paese riporta il database geo per quell'indirizzo.
+
+I finding e i punti della mappa restano nel database dell'agente: usa una `state_dir` separata per queste prove.
+
+---
+
+### 16.13 Accettare un finding come normale (console e riga di comando)
+
+Alcuni finding sono corretti ma innocui: un programma nuovo che e' il tuo backup, una porta aperta apposta da un collega.
+Invece di rivederli di continuo, accettali.
+
+* **Console:** apri un finding e premi *Accetta come normale...*: scrivi il motivo (facoltativo ma consigliato) e scegli
+  per quanto vale (per sempre / 7 / 30 / 90 giorni). Nella scheda *Finding* puoi anche spuntare piu' righe e premere
+  *Accetta come normali i selezionati*. Un finding accettato mostra quando e' stato accettato, quando si riapre e il
+  motivo; *Riapri* lo riprende (con il filtro su "accettati" lo stesso pulsante riapre le righe selezionate).
+* **Riga di comando:** `--accept <id> --note "backup" --days 30` e `--reopen <id>`.
+
+Cosa succede:
+
+1. Il finding diventa `accepted`: esce dall'elenco degli aperti, dalle mail di avviso e di riepilogo e dai contatori. Un
+   incidente che ne dipendeva viene chiuso al prossimo aggiornamento (ogni 20 s).
+2. Cio' che ha di nuovo (processo, porta, utente, voce cron... il "drift") entra nella **baseline** come normale. Se la
+   stessa cosa ricompare resta zitta: e' lo stesso finding e resta accettato.
+3. La decisione e' salvata con nota, ora e scadenza. L'AI vede la nota quando le fai domande su quel periodo (§16.14:
+   "accettato come normale: backup"), quindi non lo presenta come una minaccia.
+4. Con una scadenza, l'agente controlla ogni 20 s. Quando passa, cio' che la decisione aveva aggiunto alla baseline viene
+   tolto, il finding torna aperto e **viene segnalato di nuovo** (e' un nuovo avviso). Un'eccezione dimenticata non puo'
+   nascondere un problema per sempre.
+5. *Riapri* fa la stessa cosa subito.
+
+Attenzione:
+
+* Un finding senza drift (un brute force da un indirizzo, una CVE) viene messo a tacere solo per la stessa regola,
+  macchina e soggetto: un altro indirizzo e' un altro finding.
+* Accettare non risolve nulla, registra che **tu** l'hai giudicato normale. Non accettare finding critici che non hai
+  capito e, nel dubbio, usa una scadenza. `--events --all` elenca cio' che e' stato accettato.
+* Se due finding condividono la stessa novita', riprenderne uno toglie quell'elemento dalla baseline; l'altro resta
+  accettato, ma un *nuovo* finding su quell'elemento verrebbe segnalato.
+* Cambia solo il database dell'agente. Sulle macchine non succede nulla.
+
+Provalo: su una macchina di prova provoca un finding qualsiasi (per esempio la prova del programma nuovo del §14.4),
+accettalo dalla console "per 7 giorni" con un motivo, controlla che sparisca da *aperti*, compaia in *accettati* con il
+motivo e che provocarlo di nuovo resti silenzioso; poi *Riapri* e guarda tornare il finding alla raccolta successiva.
+
+---
+
+### 16.14 Chiedi all'agente (console)
+
+La scheda **Chiedi all'agente** risponde a domande libere, in italiano o in inglese: *"cosa e' cambiato su web01 da
+martedi?"*, *"ci sono stati accessi da paesi nuovi nelle ultime 48 ore?"*, *"what happened yesterday?"*.
+
+Il modello non naviga sulle macchine e non esegue nulla. Prima lavora l'agente, e al modello da' solo il risultato:
+
+1. **Periodo.** Lo legge dalla domanda: *oggi*, *ieri* (tutta la giornata; *da ieri* arriva fino ad adesso), *da martedi* /
+   *martedi* (da quella mezzanotte / solo quel giorno; lo stesso giorno della settimana di oggi vuol dire quello della
+   settimana scorsa), *ultime 36 ore*, *ultimi 3 giorni*, *ultima ora*, *ultima settimana*, *questa settimana*, *ultimo
+   mese* (e gli equivalenti inglesi). Mai oltre 90 giorni. Se la domanda non ne indica uno si usano gli **ultimi 7 giorni**
+   e la risposta lo dice. Il selettore sotto la domanda ha la precedenza sul testo.
+2. **Macchine.** I nomi dei target configurati che compaiono nella domanda; nessuno = tutte. Il selettore ha la precedenza.
+3. **Fatti.** Dal suo database l'agente raccoglie: conteggi (finding attivi e nuovi nel periodo, aperti adesso, risolti,
+   accettati come normali, incidenti, cambi di pacchetti, mail inviate), i 40 finding piu' gravi, fino a 8 incidenti,
+   fino a 40 cambi di pacchetti (installati / aggiornati / rimossi), le sorgenti di attacco piu' attive e i problemi di
+   raccolta. I finding accettati dall'amministratore portano il motivo. Nei fatti gli orari sono UTC; la "mezzanotte"
+   della domanda e' quella locale della macchina dell'agente.
+4. **Risposta.** Il modello scrive la risposta solo da quei fatti, usa i numeri dell'agente, cita i finding come `#id` e,
+   quando i fatti non bastano, dice in *cosa i dati non dicono* che cosa manca. Sotto la risposta vedi i **finding citati**
+   (clic per aprirli), il **periodo** capito, le macchine e i conteggi dati al modello, cosi' puoi controllare la
+   risposta sui dati.
+
+Limiti da conoscere:
+
+* Sa solo quello che l'agente ha registrato: se l'agente era fermo, o un collector ha fallito (compare nei fatti), su
+  quel momento non c'e' nulla. Gli snapshot piu' vecchi di `retention_days` vengono eliminati.
+* Con piu' di 40 finding nel periodo il modello vede i piu' gravi; la pagina dice quanti ne ha ricevuti.
+* Ogni domanda e' a se' (nessuna memoria delle precedenti): ripeti macchina e periodo.
+* Un modello locale piccolo puo' comunque leggere male i fatti. Considera la risposta una guida e apri i finding citati.
+* La domanda (al massimo 600 caratteri) e i fatti vanno solo al tuo llama-server. Un solo lavoro AI alla volta (insieme
+  alle analisi e ai report AI); servono da secondi a minuti. Richiede `llm.enabled: true`.
+* La domanda e' trattata come una richiesta, mai come un'istruzione che possa cambiare le regole del modello; il testo
+  che arriva dalle macchine e' trattato come dato non fidato, come ovunque.
+
+Provalo: dopo la simulazione del §16.12 chiedi *"cosa e' successo su <macchina> nell'ultima ora?"*: la risposta deve
+citare il brute force e il login, indicare i loro finding e mostrare il periodo "da ... a ora". Poi chiedi qualcosa che non
+e' successo (*"ieri sono stati rimossi dei pacchetti?"*): deve dire che non risulta nulla, non inventare.
+
+---
+
+### 16.15 Impostazioni: filtri, pause e reset totale (console)
+
+La scheda **Impostazioni** raccoglie cio' che si puo' cambiare senza toccare il file YAML. Tutto resta nel database
+dell'agente; sulle macchine analizzate non si scrive nulla.
+
+**Filtri di esclusione.** Un filtro dice "non segnalarmi questo". Scegli un *tipo*, scrivi un *valore*, se vuoi
+limitalo a una macchina, aggiungi un motivo e scegli quanto dura (per sempre, 7, 30 o 90 giorni).
+
+| Tipo | Valore | Esempio | Cosa mette a tacere |
+|---|---|---|---|
+| Regola | id della regola | `LOG-050`, `LOG-05*` | la regola non produce piu' finding |
+| Pacchetto | nome del pacchetto | `linux-*` | finding di vulnerabilita' e di pacchetto (anche i suoi binari) |
+| CVE | id CVE | `CVE-2026-1234`, `CVE-2024-*` | quella vulnerabilita', ovunque |
+| Porta in ascolto | `22`, `tcp/22`, `udp/5353`, `8000-8100` | `8080` | socket in ascolto nuovi/nascosti su quella porta |
+| Utente | nome account | `backup`, `svc-*` | azioni di quell'account (accessi, sudo, cron, chiavi); non file, processi o socket |
+| Indirizzo o rete | IPv4, `a.b.c.d/n` | `192.168.1.0/24` | finding su quell'origine; l'indirizzo non compare nella mappa degli attacchi |
+| Percorso | file o cartella | `/opt/app/`, `/srv/data/*.log` | finding su quei percorsi |
+| Programma | percorso o nome | `/usr/bin/backup-agent`, `backup-*` | finding su quell'eseguibile |
+
+Come si comporta:
+
+* L'agente **continua a leggere** cio' che e' escluso e la baseline continua a impararlo: si scartano solo i
+  *finding*. I finding aperti coperti dal filtro si **chiudono** subito (la console dice quanti); tornano, come nuovi,
+  se rimuovi il filtro. Un filtro con scadenza smette di agire da solo (resta nell'elenco come *scaduto*).
+* Un filtro su una macchina non tocca le altre.
+* **Rifiutati di proposito**: i soli caratteri jolly (`*`), l'utente `root` (anche con un jolly come `r*`), le reti piu'
+  larghe di /8, intere cartelle di sistema (`/usr/*`, `/etc/`), `..` nei percorsi. Il messaggio spiega il perche'.
+* **Esporta / Importa** (JSON) per copiare i filtri su un'altra installazione o tenerne una copia: fino a 200 voci per
+  importazione; quelle non valide vengono elencate e saltate, le altre entrano.
+* La stessa decisione per un solo finding si prende con **Accetta come normale** (§16.13); i filtri servono per una
+  classe intera.
+
+**Pause.** *Mail*: 1 h, 4 h, 24 h o 3 giorni (una finestra di manutenzione). I finding si raccolgono comunque e
+partono nella prima mail dopo la pausa: non si perde nulla. *Valutazione AI dei nuovi finding*: sospendila per liberare
+il modello; i finding restano in attesa di valutazione. Le analisi e le domande che lanci dalla console funzionano
+comunque. Entrambe hanno un'etichetta di stato e sopravvivono a un riavvio.
+
+**Preferenze della console** (salvate solo nel tuo browser): aggiornamento della panoramica (mai, 15 s, 30 s, 1 min,
+5 min) e scheda aperta all'inizio.
+
+**Informazioni** (sola lettura): versione, host, lingua, macchine, conservazione, soglie e destinatari degli avvisi,
+modello, feed di vulnerabilita', percorso e dimensione del database e cosa contiene ogni tabella. La configurazione
+vera e propria si cambia ancora nel file YAML.
+
+**Reset totale.** *Zona pericolosa → Reset totale...* apre un popup in due passi:
+
+1. Elenca cio' che verra' cancellato con i numeri reali (finding, istantanee, baseline, analisi AI, storico mail,
+   incidenti, giorni della mappa, cambi di pacchetti, accessi, connessioni, decisioni accettate, filtri). Puoi spuntare
+   **mantieni i filtri di esclusione** e devi spuntare *ho capito*.
+2. Scrivi la parola `RESET`; solo allora il pulsante rosso funziona. Anche il server controlla la parola: una richiesta
+   senza viene rifiutata.
+
+Prima di cancellare l'agente salva una copia del database accanto all'originale (`<db>.before-reset-<timestamp>`),
+poi svuota tutte le tabelle in una sola transazione e compatta il file. Il popup mostra quante righe sono andate e dove
+sta la copia: **cancellala a mano** quando non ti serve piu' (contiene i vecchi dati).
+
+Restano: i database pubblici (CVE, liste di minacce, posizioni), la configurazione, le chiavi e i token, i file di
+log. Ricomincia da zero: la baseline impara di nuovo (le regole di "novita'" restano mute durante `baseline.learning`),
+incidenti, mappa e storico sono vuoti. L'agente continua a girare; il suo stato in memoria (per esempio i processi gia'
+visti) si pulisce **riavviando il servizio**, cosa da fare dopo un reset.
+
+Provalo (su un'installazione di prova, mai su quella di produzione): aggiungi `porta 8080` e controlla che il finding
+sparisca dall'elenco; rimuovilo e controlla che torni alla raccolta successiva. Aggiungi `utente root` e leggi il
+rifiuto. Metti in pausa le mail per 1 h, lancia una simulazione (§16.12) e controlla che non parta nulla, poi premi
+*Riprendi* e controlla che parta. Infine fai il reset mantenendo i filtri: i contatori vanno a zero, i filtri restano, la
+copia esiste e la console continua a funzionare.
 
 ---

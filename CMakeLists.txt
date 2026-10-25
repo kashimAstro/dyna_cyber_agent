@@ -41,6 +41,7 @@ add_library(agent_core STATIC
   src/analysis/rule.cpp
   src/analysis/analyzer.cpp
   src/analysis/explain.cpp
+  src/analysis/exclusions.cpp
   src/analysis/incident.cpp
   src/transport/transport.cpp
   src/transport/scan_presets.cpp
@@ -77,7 +78,9 @@ add_library(agent_core STATIC
   src/llm/llm_client.cpp
   src/llm/analysis.cpp
   src/llm/synthesis.cpp
+  src/llm/ask.cpp
   src/app/synthesis.cpp
+  src/app/ask.cpp
   src/llm/prompt.cpp
   src/llm/context.cpp
   src/llm/reasoner.cpp

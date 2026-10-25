@@ -37,6 +37,10 @@ Result<AnalysisResult> Analyzer::analyze(const Snapshot& snap) {
   std::vector<Identity> to_learn;
   std::map<std::string, bool> late_learning;  // facet -> still inside its own first day (computed once per snapshot)
   std::set<std::string> seen;  // fingerprints present in this snapshot
+  auto filters = store_.listExclusions(true, snap.ts);
+  if (!filters) return err(filters.error());
+  const ExclusionSet exclusions(std::move(filters.value()));
+
   for (const auto& obs : snap.observations) {
     const auto ids = identitiesOf(obs);
     std::vector<Identity> drift;
@@ -65,6 +69,10 @@ Result<AnalysisResult> Analyzer::analyze(const Snapshot& snap) {
 
     for (const auto& rule : *rules) {
       if (!rule.matches(obs, drift)) continue;
+      if (!exclusions.empty() && exclusions.find(snap.target, rule.id, obs.type, obs.data)) {
+        ++res.excluded;  // the administrator asked not to analyse this: no finding, and an old one resolves below
+        continue;
+      }
       Finding f;
       f.rule_id = rule.id;
       f.title = rule.title;
